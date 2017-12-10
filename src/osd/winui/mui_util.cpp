@@ -1,0 +1,1265 @@
+/***************************************************************************
+
+  M.A.M.E.UI  -  Multiple Arcade Machine Emulator with User Interface
+  Win32 Portions Copyright (C) 1997-2003 Michael Soderstrom and Chris Kirmse,
+  Copyright (C) 2003-2007 Chris Kirmse and the MAME32/MAMEUI team.
+
+  This file is part of MAMEUI, and may only be used, modified and
+  distributed under the terms of the MAME license, in "readme.txt".
+  By continuing to use, modify or distribute this file you indicate
+  that you have read the license and understand and accept it fully.
+
+ ***************************************************************************/
+
+/***************************************************************************
+
+  mui_util.c
+
+ ***************************************************************************/
+
+// standard windows headers
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <shellapi.h>
+
+// standard C headers
+#include <assert.h>
+#include <stdio.h>
+#include <tchar.h>
+
+// MAME/MAMEUI headers
+#include "emu.h"
+#include "unzip.h"
+#include "sound/samples.h"
+#include "winutf8.h"
+#include "strconv.h"
+#include "winui.h"
+#include "mui_util.h"
+#include "translate.h"
+#include "mui_opts.h"
+
+#ifdef USE_IPS
+#include "ips.h"
+#endif /* USE_IPS */
+
+#include <shlwapi.h>
+#include <vector>
+
+/***************************************************************************
+	function prototypes
+ ***************************************************************************/
+
+/***************************************************************************
+	External variables
+ ***************************************************************************/
+
+/***************************************************************************
+	Internal structures
+ ***************************************************************************/
+struct DriversInfo
+{
+	int screenCount;
+	bool isClone;
+	bool isBroken;
+	bool isHarddisk;
+	bool hasOptionalBIOS;
+	bool isStereo;
+	bool isVector;
+	bool usesRoms;
+	bool usesSamples;
+	bool usesTrackball;
+	bool usesLightGun;
+	bool usesMouse;
+	bool supportsSaveState;
+	bool isVertical;
+
+	int numPlayers;
+	int numButtons;
+	bool usesController[CONTROLLER_MAX];
+	int parentIndex;
+	int biosIndex;
+};
+
+static std::vector<DriversInfo>	drivers_info;
+
+
+enum
+{
+	DRIVER_CACHE_SCREEN		= 0x000F,
+	DRIVER_CACHE_ROMS		= 0x0010,
+	DRIVER_CACHE_CLONE		= 0x0020,
+	DRIVER_CACHE_STEREO		= 0x0040,
+	DRIVER_CACHE_BIOS		= 0x0080,
+	DRIVER_CACHE_TRACKBALL		= 0x0100,
+	DRIVER_CACHE_HARDDISK		= 0x0200,
+	DRIVER_CACHE_SAMPLES		= 0x0400,
+	DRIVER_CACHE_LIGHTGUN		= 0x0800,
+	DRIVER_CACHE_VECTOR		= 0x1000,
+	DRIVER_CACHE_MOUSE		= 0x2000,
+};
+
+/***************************************************************************
+	External functions
+ ***************************************************************************/
+
+/*
+	ErrorMsg
+*/
+void __cdecl ErrorMsg(const char* fmt, ...)
+{
+	static FILE*	pFile = NULL;
+	DWORD			dwWritten;
+	char			buf[5000];
+	char			buf2[5000];
+	va_list 		va;
+
+	va_start(va, fmt);
+
+	vsprintf(buf, fmt, va);
+
+	MessageBox(GetActiveWindow(), _Unicode(buf), TEXT(MAMEUINAME), MB_OK | MB_ICONERROR);
+
+	strcpy(buf2, MAMEUINAME ": ");
+	strcat(buf2,buf);
+	strcat(buf2, "\n");
+
+	WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), _Unicode(buf2), strlen(buf2), &dwWritten, NULL);
+
+	if (pFile == NULL)
+		pFile = fopen("debug.txt", "wt");
+
+	if (pFile != NULL)
+	{
+		fprintf(pFile, "%s", buf2);
+		fflush(pFile);
+	}
+
+	va_end(va);
+}
+
+void __cdecl dprintf(const char* fmt, ...)
+{
+	char 	buf[5000];
+	va_list va;
+
+	va_start(va, fmt);
+
+	_vsnprintf(buf, ARRAY_LENGTH(buf), fmt, va);
+
+	OutputDebugStringA(buf);
+
+	va_end(va);
+}
+
+void __cdecl dwprintf(const WCHAR* fmt, ...)
+{
+	WCHAR	buf[5000];
+	va_list va;
+
+	va_start(va, fmt);
+
+	_vsnwprintf(buf, ARRAY_LENGTH(buf), fmt, va);
+
+	OutputDebugStringW(buf);
+
+	va_end(va);
+}
+
+UINT GetDepth(HWND hWnd)
+{
+	UINT	nBPP;
+	HDC 	hDC;
+
+	hDC = GetDC(hWnd);
+
+	nBPP = GetDeviceCaps(hDC, BITSPIXEL) * GetDeviceCaps(hDC, PLANES);
+
+	ReleaseDC(hWnd, hDC);
+
+	return nBPP;
+}
+
+/*
+ * Return TRUE if comctl32.dll is version 4.71 or greater
+ * otherwise return FALSE.
+ */
+LONG GetCommonControlVersion()
+{
+	HMODULE hModule = GetModuleHandleW(TEXT("comctl32"));
+
+	if (hModule)
+	{
+		FARPROC lpfnICCE = GetProcAddress(hModule, "InitCommonControlsEx");
+
+		if (NULL != lpfnICCE)
+		{
+			FARPROC lpfnDLLI = GetProcAddress(hModule, "DllInstall");
+
+			if (NULL != lpfnDLLI)
+			{
+				/* comctl 4.71 or greater */
+
+				// see if we can find out exactly
+
+				DLLGETVERSIONPROC pDllGetVersion;
+				pDllGetVersion = (DLLGETVERSIONPROC)GetProcAddress(hModule, "DllGetVersion");
+
+				/* Because some DLLs might not implement this function, you
+				   must test for it explicitly. Depending on the particular
+				   DLL, the lack of a DllGetVersion function can be a useful
+				   indicator of the version. */
+
+				if(pDllGetVersion)
+				{
+					DLLVERSIONINFO dvi;
+					HRESULT hr;
+
+					ZeroMemory(&dvi, sizeof(dvi));
+					dvi.cbSize = sizeof(dvi);
+
+					hr = (*pDllGetVersion)(&dvi);
+
+					if (SUCCEEDED(hr))
+					{
+						return PACKVERSION(dvi.dwMajorVersion, dvi.dwMinorVersion);
+					}
+				}
+				return PACKVERSION(4,71);
+			}
+			return PACKVERSION(4,7);
+		}
+		return PACKVERSION(4,0);
+	}
+	/* DLL not found */
+	return PACKVERSION(0,0);
+}
+
+void DisplayTextFile(HWND hWnd, const char *cName)
+{
+	HINSTANCE hErr;
+	LPCTSTR	  msg = 0;
+	LPTSTR    tName;
+
+	tName = tstring_from_utf8(cName);
+	if( !tName )
+		return;
+
+	hErr = ShellExecute(hWnd, NULL, tName, NULL, NULL, SW_SHOWNORMAL);
+	if ((FPTR)hErr > 32)
+	{
+		osd_free(tName);
+		return;
+	}
+
+	switch((FPTR)hErr)
+	{
+	case 0:
+		msg = _UIW(TEXT("The operating system is out of memory or resources."));
+		break;
+
+	case ERROR_FILE_NOT_FOUND:
+		msg = _UIW(TEXT("The specified file was not found."));
+		break;
+
+	case SE_ERR_NOASSOC :
+		msg = _UIW(TEXT("There is no application associated with the given filename extension."));
+		break;
+
+	case SE_ERR_OOM :
+		msg = _UIW(TEXT("There was not enough memory to complete the operation."));
+		break;
+
+	case SE_ERR_PNF :
+		msg = _UIW(TEXT("The specified path was not found."));
+		break;
+
+	case SE_ERR_SHARE :
+		msg = _UIW(TEXT("A sharing violation occurred."));
+		break;
+
+	default:
+		msg = _UIW(TEXT("Unknown error."));
+	}
+
+	MessageBox(NULL, msg, tName, MB_OK);
+
+	osd_free(tName);
+}
+
+LPWSTR MyStrStrI(LPCWSTR pFirst, LPCWSTR pSrch)
+{
+	int len = wcslen(pSrch);
+
+	while (*pFirst)
+	{
+		if (_wcsnicmp(pFirst, pSrch, len) == 0)
+			return (LPWSTR)pFirst;
+
+		pFirst++;
+	}
+	return NULL;
+}
+
+char * ConvertToWindowsNewlines(const char *source)
+{
+	static char buf[2048 * 2048];
+	char *dest;
+
+	dest = buf;
+	while (*source != 0)
+	{
+		if (*source == '\n')
+		{
+			*dest++ = '\r';
+			*dest++ = '\n';
+		}
+		else
+			*dest++ = *source;
+		source++;
+	}
+	*dest = 0;
+	return buf;
+}
+
+/* Lop off path and extention from a source file name
+ * This assumes their is a pathname passed to the function
+ * like src\drivers\blah.c
+ */
+const WCHAR * GetDriverFilename(int nIndex)
+{
+	const WCHAR *ptmp;
+
+	const WCHAR *filename = driversw[nIndex]->source_file;
+
+	for (ptmp = filename; *ptmp; ptmp++)
+	{
+		if (*ptmp == '\\')
+			filename = ptmp + 1;
+		else if (*ptmp == '/')
+			filename = ptmp + 1;
+	}
+
+	return filename;
+}
+
+BOOL isDriverVector(const machine_config *config)
+{
+	const screen_device *screen  = config->first_screen();
+
+	if (screen != NULL) {
+		// parse "vector.ini" for vector games
+		if (SCREEN_TYPE_VECTOR == screen->screen_type())
+			return TRUE;
+	}
+	return FALSE;
+}
+
+int numberOfScreens(const machine_config *config)
+{
+	const screen_device *screen  = config->first_screen();
+	screen_device_iterator iter(config->root_device());
+	UINT8 i = 0;
+	for (screen = iter.first(); screen != NULL; screen = iter.next())
+		i++;
+	return i;
+}
+
+int numberOfSpeakers(const machine_config *config)
+{
+	speaker_device_iterator iter(config->root_device());
+	return iter.count();
+}
+struct control_cache_t
+{
+	ioport_constructor ipt;
+	int num;
+};
+
+static int cmp_ipt(const void *m1, const void *m2)
+{
+	struct control_cache_t *p1 = (struct control_cache_t *)m1;
+	struct control_cache_t *p2 = (struct control_cache_t *)m2;
+
+	return &p1->ipt - &p2->ipt;
+}
+
+static void UpdateController(void)
+{
+	struct control_cache_t *cache;
+	ioport_constructor last_ipt = NULL;
+	BOOL flags[CONTROLLER_MAX];
+	int nGames = GetNumGames();
+	int b = 0;
+	int p = 0;
+	int i;
+
+	cache = (control_cache_t *)malloc(sizeof (*cache) * nGames);
+	if (cache == NULL)
+		return;
+
+	for (i = 0; i < nGames; i++)
+	{
+		cache[i].ipt = driver_list::driver(i).ipt;
+		cache[i].num = i;
+	}
+	qsort(cache, nGames, sizeof (*cache), cmp_ipt);
+
+	for (i = 0; i < nGames; i++)
+	{
+		struct DriversInfo *gameinfo = &drivers_info[cache[i].num];
+
+		if (!cache[i].ipt)
+			continue;
+
+		if (cache[i].ipt != last_ipt)
+		{
+			ioport_port *port;
+			ioport_list portlist;
+			std::string errors;
+
+			int w = CONTROLLER_JOY8WAY;
+			BOOL lr = FALSE;
+			BOOL ud = FALSE;
+			BOOL dual = FALSE;
+
+			last_ipt = cache[i].ipt;
+			memset(flags, 0, sizeof flags);
+			b = 0;
+			p = 0;
+
+			machine_config config(driver_list::driver(i), MameUIGlobal());
+			device_iterator iter(config.root_device());
+			for (device_t *device = iter.first(); device != NULL; device = iter.next())
+				if (device->input_ports())
+					portlist.append(*device, errors);
+
+			for (port = portlist.first(); port != NULL; port = port->next())
+			{
+				ioport_field *field;
+				for (field = port->first_field(); field != NULL; field = field->next())
+				{
+					int n;
+
+					if (p < field->player() + 1)
+						p = field->player() + 1;
+
+					n = field->type() - IPT_BUTTON1 + 1;
+					if (n >= 1 && n <= MAX_NORMAL_BUTTONS && n > b)
+					{
+						b = n;
+						continue;
+					}
+
+					UINT32 type = field->type();
+					switch (type)
+					{
+					case IPT_JOYSTICKRIGHT_LEFT:
+					case IPT_JOYSTICKRIGHT_RIGHT:
+					case IPT_JOYSTICKLEFT_LEFT:
+					case IPT_JOYSTICKLEFT_RIGHT:
+						dual = TRUE;
+
+					case IPT_JOYSTICK_LEFT:
+					case IPT_JOYSTICK_RIGHT:
+						lr = TRUE;
+
+						if (field->way() == 4)
+							w = CONTROLLER_JOY4WAY;
+						else if (field->way() == 16)
+							w = CONTROLLER_JOY16WAY;
+						break;
+
+					case IPT_JOYSTICKRIGHT_UP:
+					case IPT_JOYSTICKRIGHT_DOWN:
+					case IPT_JOYSTICKLEFT_UP:
+					case IPT_JOYSTICKLEFT_DOWN:
+						dual = TRUE;
+
+					case IPT_JOYSTICK_UP:
+					case IPT_JOYSTICK_DOWN:
+						ud = TRUE;
+
+						if (field->way() == 4)
+							w = CONTROLLER_JOY4WAY;
+						else if (field->way() == 16)
+							w = CONTROLLER_JOY16WAY;
+						break;
+
+					case IPT_PADDLE:
+						flags[CONTROLLER_PADDLE] = TRUE;
+						break;
+
+					case IPT_DIAL:
+						flags[CONTROLLER_DIAL] = TRUE;
+						break;
+
+					case IPT_TRACKBALL_X:
+					case IPT_TRACKBALL_Y:
+						flags[CONTROLLER_TRACKBALL] = TRUE;
+						break;
+
+					case IPT_AD_STICK_X:
+					case IPT_AD_STICK_Y:
+						flags[CONTROLLER_ADSTICK] = TRUE;
+						break;
+
+					case IPT_LIGHTGUN_X:
+					case IPT_LIGHTGUN_Y:
+						flags[CONTROLLER_LIGHTGUN] = TRUE;
+						break;
+					case IPT_PEDAL:
+						flags[CONTROLLER_PEDAL] = TRUE;
+						break;
+				    }
+				}
+			}
+			//input_port_list_deinit(&portlist);
+
+			if (lr || ud)
+			{
+				if (lr && !ud)
+					w = CONTROLLER_JOY2WAY;
+				else if (!lr && ud)
+					w = CONTROLLER_VJOY2WAY;
+
+				if (dual)
+					w += CONTROLLER_DOUBLEJOY2WAY - CONTROLLER_JOY2WAY;
+
+				flags[w] = TRUE;
+			}
+		}
+
+		gameinfo->numPlayers = p;
+		gameinfo->numButtons = b;
+
+		memcpy(gameinfo->usesController, flags, sizeof gameinfo->usesController);
+	}
+
+	free(cache);
+}
+
+static void SetDriversInfo(void)
+{
+	int ndriver;
+	int cache = -1;
+	int total = driver_list::total();
+	struct DriversInfo *gameinfo = NULL;
+	int i;
+
+	for (ndriver = 0; ndriver < total; ndriver++)
+	{
+		gameinfo = &drivers_info[ndriver];
+		cache    = (gameinfo->screenCount & DRIVER_CACHE_SCREEN);
+		if (gameinfo->isClone)			cache += DRIVER_CACHE_CLONE;
+		if (gameinfo->isHarddisk)		cache += DRIVER_CACHE_HARDDISK;
+		if (gameinfo->hasOptionalBIOS)		cache += DRIVER_CACHE_BIOS;
+		if (gameinfo->isStereo)			cache += DRIVER_CACHE_STEREO;
+		if (gameinfo->isVector)			cache += DRIVER_CACHE_VECTOR;
+		if (gameinfo->usesRoms)			cache += DRIVER_CACHE_ROMS;
+		if (gameinfo->usesSamples)		cache += DRIVER_CACHE_SAMPLES;
+		if (gameinfo->usesTrackball)		cache += DRIVER_CACHE_TRACKBALL;
+		if (gameinfo->usesLightGun)		cache += DRIVER_CACHE_LIGHTGUN;
+		if (gameinfo->usesMouse)		cache += DRIVER_CACHE_MOUSE;
+
+		SetDriverCache(ndriver, cache);
+		
+		SetDriverCachePlayers(ndriver, gameinfo->numPlayers);
+		SetDriverCacheButtons(ndriver, gameinfo->numButtons);
+		SetDriverCacheParentIndex(ndriver, gameinfo->parentIndex);
+		SetDriverCacheBiosIndex(ndriver, gameinfo->biosIndex);
+		
+		cache = 0;
+		for (i = 0; i < CONTROLLER_MAX; i++)
+			if (gameinfo->usesController[i]) cache += 1<<i;
+		SetDriverCacheUsesController(ndriver, cache);
+	}
+}
+
+static void InitDriversInfo(void)
+{
+	int ndriver;
+	int num_speakers;
+	int total = driver_list::total();
+	const game_driver *gamedrv = NULL;
+	struct DriversInfo *gameinfo = NULL;
+	const rom_entry *region, *rom;
+
+	for (ndriver = 0; ndriver < total; ndriver++)
+	{
+		gamedrv = &driver_list::driver(ndriver);
+		gameinfo = &drivers_info[ndriver];
+		machine_config config(*gamedrv, MameUIGlobal());
+
+		gameinfo->isClone = (GetParentRomSetIndex(gamedrv) != -1);
+		gameinfo->isBroken = ((gamedrv->flags & MACHINE_NOT_WORKING) != 0);
+		gameinfo->supportsSaveState = ((gamedrv->flags & MACHINE_SUPPORTS_SAVE) != 0);
+		gameinfo->isHarddisk = FALSE;
+		gameinfo->isVertical = (gamedrv->flags & ORIENTATION_SWAP_XY) ? TRUE : FALSE;
+		device_iterator deviter(config.root_device());
+		for (device_t *device = deviter.first(); device != NULL; device = deviter.next())
+			for (region = rom_first_region(*device); region; region = rom_next_region(region))
+				if (ROMREGION_ISDISKDATA(region))
+					gameinfo->isHarddisk = TRUE;
+
+		gameinfo->hasOptionalBIOS = FALSE;
+		if (gamedrv->rom != NULL)
+			for (rom = gamedrv->rom; !ROMENTRY_ISEND(rom); rom++)
+				if (ROMENTRY_ISSYSTEM_BIOS(rom))
+					gameinfo->hasOptionalBIOS = TRUE;
+
+		num_speakers = numberOfSpeakers(&config);
+
+		gameinfo->isStereo = (num_speakers > 1);
+		gameinfo->screenCount = numberOfScreens(&config);
+		gameinfo->isVector = isDriverVector(&config);
+		gameinfo->usesRoms = FALSE;
+		for (device_t *device = deviter.first(); device != NULL; device = deviter.next())
+			for (region = rom_first_region(*device); region; region = rom_next_region(region))
+				for (rom = rom_first_file(region); rom; rom = rom_next_file(rom))
+					gameinfo->usesRoms = TRUE;
+
+		gameinfo->usesSamples = FALSE;
+
+		samples_device_iterator iter(config.root_device());
+		if (iter.first() != NULL)
+			gameinfo->usesSamples = TRUE;
+
+		gameinfo->usesTrackball = FALSE;
+		gameinfo->usesLightGun = FALSE;
+		if (gamedrv->ipt != NULL)
+		{
+			ioport_port *port;
+			ioport_list portlist;
+			std::string errors;
+			device_iterator iter(config.root_device());
+			for (device_t *cfg = iter.first(); cfg; cfg = iter.next())
+				if (cfg->input_ports())
+					portlist.append(*cfg, errors);
+
+			for (port = portlist.first(); port; port = port->next())
+			{
+				ioport_field *field;
+				for (field = port->first_field(); field; field = field->next())
+				{
+					UINT32 type;
+					type = field->type();
+					if (type == IPT_END)
+						break;
+					if (type == IPT_DIAL || type == IPT_PADDLE ||
+						type == IPT_TRACKBALL_X || type == IPT_TRACKBALL_Y ||
+						type == IPT_AD_STICK_X || type == IPT_AD_STICK_Y)
+						gameinfo->usesTrackball = TRUE;
+					if (type == IPT_LIGHTGUN_X || type == IPT_LIGHTGUN_Y)
+						gameinfo->usesLightGun = TRUE;
+					if (type == IPT_MOUSE_X || type == IPT_MOUSE_Y)
+						gameinfo->usesMouse = TRUE;
+				}
+			}
+		}
+
+		gameinfo->numPlayers = 0;
+		gameinfo->numButtons = 0;
+		memset(gameinfo->usesController, 0, sizeof gameinfo->usesController);
+
+		gameinfo->parentIndex = -1;
+		if (gameinfo->isClone)
+		{
+			for (int i = 0; i < GetNumGames(); i++)
+			{
+				if (GetParentRomSetIndex(gamedrv) == i)
+				{
+					gameinfo->parentIndex = i;
+					break;
+				}
+			}
+		}
+
+		gameinfo->biosIndex = -1;
+		if (DriverIsBios(ndriver))
+			gameinfo->biosIndex = ndriver;
+		else if (gameinfo->hasOptionalBIOS)
+		{
+			int parentIndex;
+
+			if (gameinfo->isClone)
+				parentIndex = gameinfo->parentIndex;
+			else
+				parentIndex = ndriver;
+
+			while (1)
+			{
+				parentIndex = GetGameNameIndex(driver_list::driver(parentIndex).parent);
+				if (parentIndex == -1)
+				{
+					dprintf("bios for %s is not found", driver_list::driver(ndriver).name);
+					break;
+				}
+
+				if (DriverIsBios(parentIndex))
+				{
+					gameinfo->biosIndex = parentIndex;
+					break;
+				}
+			}
+		}
+	}
+	UpdateController();
+
+	SetDriversInfo();
+}
+
+static int InitDriversCache(void)
+{
+	int cache = -1;
+	int total = driver_list::total();
+	const game_driver *gamedrv = NULL;
+	struct DriversInfo *gameinfo = NULL;
+	int ndriver;
+	int i;
+
+	SetRequiredDriverCacheStatus();
+
+	if (RequiredDriverCache())
+	{
+		InitDriversInfo();
+		return 0;
+	}
+
+	for (ndriver = 0; ndriver < total; ndriver++)
+	{
+		gamedrv  = &driver_list::driver(ndriver);
+		gameinfo = &drivers_info[ndriver];
+		cache    = GetDriverCache(ndriver);
+
+		if (cache == -1)
+		{
+			InitDriversInfo();
+			break;
+		}
+
+		gameinfo->isBroken          = ((gamedrv->flags & MACHINE_NOT_WORKING)   != 0);
+		gameinfo->supportsSaveState = ((gamedrv->flags & MACHINE_SUPPORTS_SAVE) != 0);
+		gameinfo->isVertical        =  (gamedrv->flags & ORIENTATION_SWAP_XY) ? TRUE : FALSE;
+		gameinfo->screenCount       =   cache & DRIVER_CACHE_SCREEN;
+		gameinfo->isClone           = ((cache & DRIVER_CACHE_CLONE)     != 0);
+		gameinfo->isHarddisk        = ((cache & DRIVER_CACHE_HARDDISK)  != 0);
+		gameinfo->hasOptionalBIOS   = ((cache & DRIVER_CACHE_BIOS)      != 0);
+		gameinfo->isStereo          = ((cache & DRIVER_CACHE_STEREO)    != 0);
+		gameinfo->isVector          = ((cache & DRIVER_CACHE_VECTOR)    != 0);
+		gameinfo->usesRoms          = ((cache & DRIVER_CACHE_ROMS)      != 0);
+		gameinfo->usesSamples       = ((cache & DRIVER_CACHE_SAMPLES)   != 0);
+		gameinfo->usesTrackball     = ((cache & DRIVER_CACHE_TRACKBALL) != 0);
+		gameinfo->usesLightGun      = ((cache & DRIVER_CACHE_LIGHTGUN)  != 0);
+		gameinfo->usesMouse         = ((cache & DRIVER_CACHE_MOUSE)     != 0);
+
+		gameinfo->numPlayers        = GetDriverCachePlayers(ndriver);
+		gameinfo->numButtons        = GetDriverCacheButtons(ndriver);
+		gameinfo->parentIndex       = GetDriverCacheParentIndex(ndriver);
+		gameinfo->biosIndex         = GetDriverCacheBiosIndex(ndriver);
+
+		cache    = GetDriverCacheUsesController(ndriver);
+		for (i = 0; i < CONTROLLER_MAX; i++)
+			if ((cache || 1<<i) != 0)
+				gameinfo->usesController[i] = true;
+			else
+				gameinfo->usesController[i] = false;
+	}
+
+	return 0;
+}
+
+static struct DriversInfo* GetDriversInfo(int driver_index)
+{
+	static bool bFirst = true;
+
+	if (bFirst)
+	{
+		bFirst = false;
+
+		drivers_info.clear();
+		drivers_info.reserve(driver_list::total());
+
+		InitDriversCache();
+	}
+
+	return &drivers_info[driver_index];
+}
+
+BOOL DriverIsClone(int driver_index)
+{
+	 return GetDriversInfo(driver_index)->isClone;
+}
+
+BOOL DriverIsBroken(int driver_index)
+{
+	return GetDriversInfo(driver_index)->isBroken;
+}
+
+BOOL DriverIsHarddisk(int driver_index)
+{
+	return GetDriversInfo(driver_index)->isHarddisk;
+}
+
+BOOL DriverIsBios(int driver_index)
+{
+	BOOL bBios = FALSE;
+	if( !( (driver_list::driver(driver_index).flags & MACHINE_IS_BIOS_ROOT ) == 0)   )
+		bBios = TRUE;
+	return bBios;
+}
+
+BOOL DriverIsMechanical(int driver_index)
+{
+	BOOL bMechanical = FALSE;
+	if( !( (driver_list::driver(driver_index).flags & MACHINE_MECHANICAL ) == 0)   )
+		bMechanical = TRUE;
+	return bMechanical;
+}
+
+BOOL DriverHasOptionalBIOS(int driver_index)
+{
+	return GetDriversInfo(driver_index)->hasOptionalBIOS;
+}
+
+BOOL DriverIsStereo(int driver_index)
+{
+	return GetDriversInfo(driver_index)->isStereo;
+}
+
+int DriverNumScreens(int driver_index)
+{
+	return GetDriversInfo(driver_index)->screenCount;
+}
+
+BOOL DriverIsVector(int driver_index)
+{
+	return GetDriversInfo(driver_index)->isVector;
+}
+
+BOOL DriverUsesRoms(int driver_index)
+{
+	return GetDriversInfo(driver_index)->usesRoms;
+}
+
+BOOL DriverUsesSamples(int driver_index)
+{
+	return GetDriversInfo(driver_index)->usesSamples;
+}
+
+BOOL DriverUsesTrackball(int driver_index)
+{
+	return GetDriversInfo(driver_index)->usesTrackball;
+}
+
+BOOL DriverUsesLightGun(int driver_index)
+{
+	return GetDriversInfo(driver_index)->usesLightGun;
+}
+
+BOOL DriverUsesMouse(int driver_index)
+{
+	return GetDriversInfo(driver_index)->usesMouse;
+}
+
+BOOL DriverSupportsSaveState(int driver_index)
+{
+	return GetDriversInfo(driver_index)->supportsSaveState;
+}
+
+BOOL DriverIsVertical(int driver_index)
+{
+	return GetDriversInfo(driver_index)->isVertical;
+}
+
+BOOL DriverIsConsole(int driver_index)
+{
+	return driver_list::driver(driver_index).flags & (MACHINE_TYPE_CONSOLE|MACHINE_TYPE_COMPUTER);
+}
+
+int DriverBiosIndex(int driver_index)
+{
+	return GetDriversInfo(driver_index)->biosIndex;
+}
+
+int DriverNumPlayers(int driver_index)
+{
+	return GetDriversInfo(driver_index)->numPlayers;
+}
+
+int DriverNumButtons(int driver_index)
+{
+	return GetDriversInfo(driver_index)->numButtons;
+}
+
+BOOL DriverUsesController(int driver_index, int type)
+{
+	return GetDriversInfo(driver_index)->usesController[type];
+}
+
+void FlushFileCaches(void)
+{
+	zip_file_cache_clear();
+}
+
+BOOL StringIsSuffixedBy(const char *s, const char *suffix)
+{
+	return (strlen(s) > strlen(suffix)) && (strcmp(s + strlen(s) - strlen(suffix), suffix) == 0);
+}
+
+void FreeIfAllocated(char **s)
+{
+	if (*s)
+		osd_free(*s);
+	*s = NULL;
+}
+
+void FreeIfAllocatedW(WCHAR **s)
+{
+	if (*s)
+		osd_free(*s);
+	*s = NULL;
+}
+
+/***************************************************************************
+	Win32 wrappers
+ ***************************************************************************/
+
+BOOL SafeIsAppThemed(void)
+{
+	BOOL bResult = FALSE;
+	HMODULE hThemes;
+	BOOL (WINAPI *pfnIsAppThemed)(void);
+
+	hThemes = LoadLibrary(TEXT("uxtheme.dll"));
+	if (hThemes != NULL)
+	{
+		pfnIsAppThemed = (BOOL (WINAPI *)(void)) GetProcAddress(hThemes, "IsAppThemed");
+		if (pfnIsAppThemed != NULL)
+			bResult = pfnIsAppThemed();
+		FreeLibrary(hThemes);
+	}
+	return bResult;
+
+}
+
+
+void GetSystemErrorMessage(DWORD dwErrorId, TCHAR **tErrorMessage)
+{
+	if( FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER|FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwErrorId, 0, (LPTSTR)tErrorMessage, 0, NULL) == 0 )
+	{
+		*tErrorMessage = (LPTSTR)LocalAlloc(LPTR, MAX_PATH * sizeof(TCHAR));
+		_tcscpy(*tErrorMessage, TEXT("Unknown Error"));
+	}
+}
+
+
+#ifdef USE_IPS
+int GetPatchCount(const WCHAR *game_name, const WCHAR *patch_name)
+{
+	int Count = 0;
+
+	if (game_name && patch_name)
+	{
+		WCHAR szFilename[MAX_PATH];
+		WIN32_FIND_DATAW ffd;
+		HANDLE hFile;
+
+		swprintf(szFilename, TEXT("%s\\%s\\%s.dat"), GetIPSDir(), game_name, patch_name);
+		hFile = FindFirstFileW(szFilename, &ffd);
+		if (hFile != INVALID_HANDLE_VALUE)
+		{
+			int Done = 0;
+
+			while (!Done)
+			{
+				Count++;
+				Done = !FindNextFileW(hFile, &ffd);
+			}
+			FindClose(hFile);
+		}
+	}
+	return Count;
+}
+
+int GetPatchFilename(WCHAR *patch_name, const WCHAR *game_name, const int patch_index)
+{
+	WIN32_FIND_DATAW ffd;
+	HANDLE hFile;
+	WCHAR szFilename[MAX_PATH];
+
+	swprintf(szFilename, TEXT("%s\\%s\\*.dat"), GetIPSDir(), game_name);
+	hFile = FindFirstFileW(szFilename, &ffd);
+	if (hFile != INVALID_HANDLE_VALUE)
+	{
+		int Done = 0;
+		int Count = 0;
+
+		while (!Done )
+		{
+			if (Count == patch_index)
+			{
+				wcscpy(patch_name, ffd.cFileName);
+				patch_name[wcslen(patch_name) - 4] = '\0';	// To trim the ext ".dat"
+				break;
+			}
+			Count++;
+			Done = !FindNextFileW(hFile, &ffd);
+		}
+		FindClose(hFile);
+		return -1;
+	}
+	return 0;
+}
+
+static LPWSTR GetPatchDescByLangcode(FILE *fp, int langcode)
+{
+	LPWSTR result;
+	char *desc = NULL;
+	char langtag[8];
+
+	sprintf(langtag, "[%s]", ui_lang_info[langcode].name);
+
+	fseek(fp, 0, SEEK_SET);
+
+	while (!feof(fp))
+	{
+		char s[4096];
+
+		if (fgets(s, ARRAY_LENGTH(s), fp) != NULL)
+		{
+			if (strncmp(langtag, s, strlen(langtag)) != 0)
+				continue;
+
+			while (fgets(s, ARRAY_LENGTH(s), fp) != NULL)
+			{
+				char *p;
+
+				if (*s == '[')
+				{
+					if (desc)
+					{
+						result = _UTF8Unicode(desc);
+						osd_free(desc);
+						return result;
+					}
+					else
+						return NULL;
+				}
+
+				for (p = s; *p; p++)
+					if (*p == '\r' || *p == '\n')
+					{
+						*p = '\0';
+						break;
+					}
+
+//				if (*s == '\0')
+//					continue;
+
+				if (desc)
+				{
+					char *p;
+					int len = strlen(desc);
+
+					len += strlen(s) + 2;
+					p = (char *)malloc(len + 1);
+					sprintf(p, "%s\r\n%s", desc, s);
+					FreeIfAllocated(&desc);
+					desc = p;
+				}
+				else
+				{
+					desc = core_strdup(s);
+				}
+			}
+		}
+	}
+
+	if (desc)
+	{
+		result = _UTF8Unicode(desc);
+		osd_free(desc);
+		return result;
+	}
+	else
+		return NULL;
+}
+
+LPWSTR GetPatchDesc(const WCHAR *game_name, const WCHAR *patch_name)
+{
+	FILE *fp;
+	LPWSTR desc = NULL;
+	WCHAR szFilename[MAX_PATH];
+
+	swprintf(szFilename, TEXT("%s\\%s\\%s.dat"), GetIPSDir(), game_name, patch_name);
+
+	if ((fp = wfopen(szFilename, TEXT("r"))) != NULL)
+	{
+		/* Get localized desc */
+		desc = GetPatchDescByLangcode(fp, GetLangcode());
+
+		/* Get English desc if localized version is not found */
+		if (desc == NULL)
+			desc = GetPatchDescByLangcode(fp, UI_LANG_EN_US);
+
+		fclose(fp);
+	}
+
+	return desc;
+}
+#endif /* USE_IPS */
+
+
+//============================================================
+//  win_extract_icon_utf8
+//============================================================
+
+HICON win_extract_icon_utf8(HINSTANCE inst, const char* exefilename, UINT iconindex)
+{
+	HICON icon = 0;
+	TCHAR* t_exefilename = tstring_from_utf8(exefilename);
+	if( !t_exefilename )
+		return icon;
+
+	icon = ExtractIcon(inst, t_exefilename, iconindex);
+
+	osd_free(t_exefilename);
+
+	return icon;
+}
+
+
+
+//============================================================
+//  win_tstring_strdup
+//============================================================
+
+TCHAR* win_tstring_strdup(LPCTSTR str)
+{
+	TCHAR *cpy = NULL;
+	if (str != NULL)
+	{
+		cpy = (TCHAR*)osd_malloc((_tcslen(str) + 1) * sizeof(TCHAR));
+		if (cpy != NULL)
+			_tcscpy(cpy, str);
+	}
+	return cpy;
+}
+
+//============================================================
+//  win_create_file_utf8
+//============================================================
+
+HANDLE win_create_file_utf8(const char* filename, DWORD desiredmode, DWORD sharemode,
+					   		LPSECURITY_ATTRIBUTES securityattributes, DWORD creationdisposition,
+					   		DWORD flagsandattributes, HANDLE templatehandle)
+{
+	HANDLE result = 0;
+	TCHAR* t_filename = tstring_from_utf8(filename);
+	if( !t_filename )
+		return result;
+
+	result = CreateFile(t_filename, desiredmode, sharemode, securityattributes, creationdisposition,
+						flagsandattributes, templatehandle);
+
+	osd_free(t_filename);
+
+	return result;
+}
+
+//============================================================
+//  win_get_current_directory_utf8
+//============================================================
+
+DWORD win_get_current_directory_utf8(DWORD bufferlength, char* buffer)
+{
+	DWORD result = 0;
+	TCHAR* t_buffer = NULL;
+	char* utf8_buffer = NULL;
+
+	if( bufferlength > 0 ) {
+		t_buffer = (TCHAR*)malloc((bufferlength * sizeof(TCHAR)) + 1);
+		if( !t_buffer )
+			return result;
+	}
+
+	result = GetCurrentDirectory(bufferlength, t_buffer);
+
+	if( bufferlength > 0 ) {
+		utf8_buffer = utf8_from_tstring(t_buffer);
+		if( !utf8_buffer ) {
+			osd_free(t_buffer);
+			return result;
+		}
+	}
+
+	strncpy(buffer, utf8_buffer, bufferlength);
+
+	if( utf8_buffer )
+		osd_free(utf8_buffer);
+
+	if( t_buffer )
+		free(t_buffer);
+
+	return result;
+}
+
+//============================================================
+//  win_find_first_file_utf8
+//============================================================
+
+HANDLE win_find_first_file_utf8(const char* filename, LPWIN32_FIND_DATA findfiledata)
+{
+	HANDLE result = 0;
+	TCHAR* t_filename = tstring_from_utf8(filename);
+	if( !t_filename )
+		return result;
+
+	result = FindFirstFile(t_filename, findfiledata);
+
+	osd_free(t_filename);
+
+	return result;
+}
+
+#ifdef TREE_SHEET
+void CenterWindow(HWND hWnd)
+{
+	HWND hWndParent;
+	RECT rcCenter, rcWnd;
+	int iWndWidth, iWndHeight, iScrWidth, iScrHeight, xLeft, yTop;
+
+	hWndParent = GetParent(hWnd);
+	GetWindowRect(hWnd, &rcWnd);
+
+	iWndWidth  = rcWnd.right - rcWnd.left;
+	iWndHeight = rcWnd.bottom - rcWnd.top;
+
+	if (hWndParent != NULL)
+	{
+		GetWindowRect(hWndParent, &rcCenter);
+	}
+	else
+	{
+		rcCenter.left = 0;
+		rcCenter.top = 0;
+		rcCenter.right = GetSystemMetrics(SM_CXFULLSCREEN);
+		rcCenter.bottom = GetSystemMetrics(SM_CYFULLSCREEN);
+	}
+
+	iScrWidth  = rcCenter.right - rcCenter.left;
+	iScrHeight = rcCenter.bottom - rcCenter.top;
+
+	xLeft = rcCenter.left;
+	yTop = rcCenter.top;
+
+	if (iScrWidth > iWndWidth)
+		xLeft += ((iScrWidth - iWndWidth) / 2);
+	if (iScrHeight > iWndHeight)
+		yTop += ((iScrHeight - iWndHeight) / 2);
+
+	// map screen coordinates to child coordinates
+	SetWindowPos(hWnd, HWND_TOP, xLeft, yTop, -1, -1, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+#endif /* TREE_SHEET */
+
