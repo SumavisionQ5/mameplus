@@ -744,7 +744,7 @@ static ADDRESS_MAP_START( rabbit_map, AS_PROGRAM, 32, rabbit_state )
 	AM_RANGE(0x488000, 0x48bfff) AM_READWRITE(tilemap2_r,tilemap2_w)
 	AM_RANGE(0x48c000, 0x48ffff) AM_READWRITE(tilemap3_r,tilemap3_w)
 	AM_RANGE(0x494000, 0x497fff) AM_RAM AM_SHARE("spriteram") // sprites?
-	AM_RANGE(0x4a0000, 0x4affff) AM_RAM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0x4a0000, 0x4affff) AM_RAM_DEVWRITE("palette", palette_device, write32) AM_SHARE("palette")
 	AM_RANGE(0xff0000, 0xffffff) AM_RAM
 ADDRESS_MAP_END
 
@@ -900,7 +900,7 @@ INTERRUPT_GEN_MEMBER(rabbit_state::vblank_interrupt)
 }
 
 MACHINE_CONFIG_START(rabbit_state::rabbit)
-	MCFG_CPU_ADD("maincpu", M68EC020, XTAL_24MHz)
+	MCFG_CPU_ADD("maincpu", M68EC020, XTAL(24'000'000))
 	MCFG_CPU_PROGRAM_MAP(rabbit_map)
 	MCFG_CPU_VBLANK_INT_DRIVER("screen", rabbit_state,  vblank_interrupt)
 
@@ -924,7 +924,7 @@ MACHINE_CONFIG_START(rabbit_state::rabbit)
 	/* sound hardware */
 	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_I5000_SND_ADD("i5000snd", XTAL_40MHz)
+	MCFG_I5000_SND_ADD("i5000snd", XTAL(40'000'000))
 	MCFG_SOUND_ROUTE(0, "rspeaker", 1.00)
 	MCFG_SOUND_ROUTE(1, "lspeaker", 1.00)
 MACHINE_CONFIG_END

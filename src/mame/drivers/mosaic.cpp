@@ -122,7 +122,7 @@ static ADDRESS_MAP_START( mosaic_map, AS_PROGRAM, 8, mosaic_state )
 	AM_RANGE(0x20000, 0x21fff) AM_RAM
 	AM_RANGE(0x22000, 0x22fff) AM_RAM_WRITE(bgvideoram_w) AM_SHARE("bgvideoram")
 	AM_RANGE(0x23000, 0x23fff) AM_RAM_WRITE(fgvideoram_w) AM_SHARE("fgvideoram")
-	AM_RANGE(0x24000, 0x241ff) AM_RAM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0x24000, 0x241ff) AM_RAM_DEVWRITE("palette", palette_device, write8) AM_SHARE("palette")
 ADDRESS_MAP_END
 
 static ADDRESS_MAP_START( gfire2_map, AS_PROGRAM, 8, mosaic_state )
@@ -130,7 +130,7 @@ static ADDRESS_MAP_START( gfire2_map, AS_PROGRAM, 8, mosaic_state )
 	AM_RANGE(0x10000, 0x17fff) AM_RAM
 	AM_RANGE(0x22000, 0x22fff) AM_RAM_WRITE(bgvideoram_w) AM_SHARE("bgvideoram")
 	AM_RANGE(0x23000, 0x23fff) AM_RAM_WRITE(fgvideoram_w) AM_SHARE("fgvideoram")
-	AM_RANGE(0x24000, 0x241ff) AM_RAM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0x24000, 0x241ff) AM_RAM_DEVWRITE("palette", palette_device, write8) AM_SHARE("palette")
 ADDRESS_MAP_END
 
 static ADDRESS_MAP_START( mosaic_io_map, AS_IO, 8, mosaic_state )
@@ -275,7 +275,7 @@ void mosaic_state::machine_reset()
 MACHINE_CONFIG_START(mosaic_state::mosaic)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z180, XTAL_12_288MHz/2)  /* 6.144MHz */
+	MCFG_CPU_ADD("maincpu", Z180, XTAL(12'288'000)/2)  /* 6.144MHz */
 	MCFG_CPU_PROGRAM_MAP(mosaic_map)
 	MCFG_CPU_IO_MAP(mosaic_io_map)
 	MCFG_CPU_VBLANK_INT_DRIVER("screen", mosaic_state,  irq0_line_hold)
@@ -298,7 +298,7 @@ MACHINE_CONFIG_START(mosaic_state::mosaic)
 	/* sound hardware */
 	MCFG_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, XTAL_12_288MHz/4) /* 3.072MHz or 3.579545MHz (14.31818MHz/4)? */
+	MCFG_SOUND_ADD("ymsnd", YM2203, XTAL(12'288'000)/4) /* 3.072MHz or 3.579545MHz (14.31818MHz/4)? */
 	MCFG_AY8910_PORT_A_READ_CB(IOPORT("DSW"))
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
 MACHINE_CONFIG_END

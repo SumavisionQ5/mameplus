@@ -783,7 +783,7 @@ ADDRESS_MAP_START( lastday_map, AS_PROGRAM, 8, dooyong_z80_ym2203_state )
 	AM_RANGE(0xc012, 0xc012) AM_DEVWRITE("soundlatch", generic_latch_8_device, write)
 	AM_RANGE(0xc013, 0xc013) AM_READ_PORT("DSWA")
 	AM_RANGE(0xc014, 0xc014) AM_READ_PORT("DSWB")
-	AM_RANGE(0xc800, 0xcfff) AM_RAM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0xc800, 0xcfff) AM_RAM_DEVWRITE("palette", palette_device, write8) AM_SHARE("palette")
 	AM_RANGE(0xd000, 0xdfff) AM_READWRITE(lastday_tx_r, lastday_tx_w)
 	AM_RANGE(0xe000, 0xefff) AM_RAM
 	AM_RANGE(0xf000, 0xffff) AM_RAM AM_SHARE("spriteram")
@@ -823,7 +823,7 @@ ADDRESS_MAP_START( gulfstrm_map, AS_PROGRAM, 8, dooyong_z80_ym2203_state )
 	AM_RANGE(0xf010, 0xf010) AM_DEVWRITE("soundlatch", generic_latch_8_device, write)
 	AM_RANGE(0xf018, 0xf01f) AM_DEVWRITE("bg", dooyong_rom_tilemap_device, ctrl_w)
 	AM_RANGE(0xf020, 0xf027) AM_DEVWRITE("fg", dooyong_rom_tilemap_device, ctrl_w)
-	AM_RANGE(0xf800, 0xffff) AM_RAM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0xf800, 0xffff) AM_RAM_DEVWRITE("palette", palette_device, write8) AM_SHARE("palette")
 ADDRESS_MAP_END
 
 ADDRESS_MAP_START( bluehawk_map, AS_PROGRAM, 8, dooyong_z80_state )
@@ -840,7 +840,7 @@ ADDRESS_MAP_START( bluehawk_map, AS_PROGRAM, 8, dooyong_z80_state )
 	AM_RANGE(0xc018, 0xc01f) AM_DEVWRITE("fg2", dooyong_rom_tilemap_device, ctrl_w)
 	AM_RANGE(0xc040, 0xc047) AM_DEVWRITE("bg", dooyong_rom_tilemap_device, ctrl_w)
 	AM_RANGE(0xc048, 0xc04f) AM_DEVWRITE("fg", dooyong_rom_tilemap_device, ctrl_w)
-	AM_RANGE(0xc800, 0xcfff) AM_RAM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0xc800, 0xcfff) AM_RAM_DEVWRITE("palette", palette_device, write8) AM_SHARE("palette")
 	AM_RANGE(0xd000, 0xdfff) AM_READWRITE(bluehawk_tx_r, bluehawk_tx_w)
 	AM_RANGE(0xe000, 0xefff) AM_RAM AM_SHARE("spriteram")
 	AM_RANGE(0xf000, 0xffff) AM_RAM
@@ -871,7 +871,7 @@ ADDRESS_MAP_START( primella_map, AS_PROGRAM, 8, dooyong_z80_state )
 	AM_RANGE(0xc000, 0xcfff) AM_RAM
 	AM_RANGE(0xd000, 0xd3ff) AM_RAM /* what is this? looks like a palette? scratchpad RAM maybe? */
 	AM_RANGE(0xe000, 0xefff) AM_READWRITE(bluehawk_tx_r, bluehawk_tx_w)
-	AM_RANGE(0xf000, 0xf7ff) AM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0xf000, 0xf7ff) AM_DEVWRITE("palette", palette_device, write8) AM_SHARE("palette")
 	AM_RANGE(0xf800, 0xf800) AM_READ_PORT("DSWA")
 	AM_RANGE(0xf800, 0xf800) AM_WRITE(primella_ctrl_w)  /* bank switch, flip screen etc */
 	AM_RANGE(0xf810, 0xf810) AM_READ_PORT("DSWB")
@@ -894,7 +894,7 @@ ADDRESS_MAP_START( rshark_map, AS_PROGRAM, 16, dooyong_68k_state )
 	AM_RANGE(0x0c0006, 0x0c0007) AM_READ_PORT("SYSTEM")
 	AM_RANGE(0x0c4000, 0x0c400f) AM_DEVWRITE8("bg", dooyong_rom_tilemap_device, ctrl_w, 0x00ff)
 	AM_RANGE(0x0c4010, 0x0c401f) AM_DEVWRITE8("bg2", dooyong_rom_tilemap_device, ctrl_w, 0x00ff)
-	AM_RANGE(0x0c8000, 0x0c8fff) AM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0x0c8000, 0x0c8fff) AM_DEVWRITE("palette", palette_device, write16) AM_SHARE("palette")
 	AM_RANGE(0x0c0012, 0x0c0013) AM_DEVWRITE8("soundlatch", generic_latch_8_device, write, 0x00ff)
 	AM_RANGE(0x0c0014, 0x0c0015) AM_WRITE(ctrl_w)    /* flip screen + unknown stuff */
 	AM_RANGE(0x0cc000, 0x0cc00f) AM_DEVWRITE8("fg", dooyong_rom_tilemap_device, ctrl_w, 0x00ff)
@@ -912,7 +912,7 @@ ADDRESS_MAP_START( superx_map, AS_PROGRAM, 16, dooyong_68k_state )
 	AM_RANGE(0x080006, 0x080007) AM_READ_PORT("SYSTEM")
 	AM_RANGE(0x084000, 0x08400f) AM_DEVWRITE8("bg", dooyong_rom_tilemap_device, ctrl_w, 0x00ff)
 	AM_RANGE(0x084010, 0x08401f) AM_DEVWRITE8("bg2", dooyong_rom_tilemap_device, ctrl_w, 0x00ff)
-	AM_RANGE(0x088000, 0x088fff) AM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0x088000, 0x088fff) AM_DEVWRITE("palette", palette_device, write16) AM_SHARE("palette")
 	AM_RANGE(0x080012, 0x080013) AM_DEVWRITE8("soundlatch", generic_latch_8_device, write, 0x00ff)
 	AM_RANGE(0x080014, 0x080015) AM_WRITE(ctrl_w)    /* flip screen + unknown stuff */
 	AM_RANGE(0x08c000, 0x08c00f) AM_DEVWRITE8("fg", dooyong_rom_tilemap_device, ctrl_w, 0x00ff)
@@ -933,7 +933,7 @@ ADDRESS_MAP_START( popbingo_map, AS_PROGRAM, 16, dooyong_68k_state )
 	AM_RANGE(0x0c0018, 0x0c001b) AM_WRITENOP // ?
 	AM_RANGE(0x0c4000, 0x0c400f) AM_DEVWRITE8("bg", dooyong_rom_tilemap_device, ctrl_w, 0x00ff)
 	AM_RANGE(0x0c4010, 0x0c401f) AM_DEVWRITE8("bg2", dooyong_rom_tilemap_device, ctrl_w, 0x00ff)
-	AM_RANGE(0x0c8000, 0x0c8fff) AM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0x0c8000, 0x0c8fff) AM_DEVWRITE("palette", palette_device, write16) AM_SHARE("palette")
 	//AM_RANGE(0x08c000, 0x08c00f) AM_DEVWRITE8("fg", dooyong_rom_tilemap_device, ctrl_w, 0x00ff) apparently not present
 	//AM_RANGE(0x08c010, 0x08c01f) AM_DEVWRITE8("fg2", dooyong_rom_tilemap_device, ctrl_w, 0x00ff) apparently not present
 	AM_RANGE(0x0dc000, 0x0dc01f) AM_RAM // registers of some kind?
@@ -1449,12 +1449,12 @@ MACHINE_CONFIG_START(dooyong_z80_state::sound_2151)
 
 	MCFG_GENERIC_LATCH_8_ADD("soundlatch")
 
-	MCFG_YM2151_ADD("ymsnd", XTAL_3_579545MHz )
+	MCFG_YM2151_ADD("ymsnd", 3.579'545_MHz_XTAL)
 	MCFG_YM2151_IRQ_HANDLER(INPUTLINE("audiocpu", 0))
 	MCFG_SOUND_ROUTE(0, "mono", 0.50)
 	MCFG_SOUND_ROUTE(1, "mono", 0.50)
 
-	MCFG_OKIM6295_ADD("oki", XTAL_1MHz, PIN7_HIGH)
+	MCFG_OKIM6295_ADD("oki", 1_MHz_XTAL, PIN7_HIGH)
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
 MACHINE_CONFIG_END
 
@@ -1463,23 +1463,23 @@ MACHINE_CONFIG_START(dooyong_state::sound_2151_4mhz )
 
 	MCFG_GENERIC_LATCH_8_ADD("soundlatch")
 
-	MCFG_YM2151_ADD("ymsnd", XTAL_16MHz/4)  /* 4MHz (16MHz/4 for most, 8Mhz/2 for Super-X) */
+	MCFG_YM2151_ADD("ymsnd", 16_MHz_XTAL/4)  /* 4MHz (16MHz/4 for most, 8Mhz/2 for Super-X) */
 	MCFG_YM2151_IRQ_HANDLER(INPUTLINE("audiocpu", 0))
 	MCFG_SOUND_ROUTE(0, "mono", 0.50)
 	MCFG_SOUND_ROUTE(1, "mono", 0.50)
 
-	MCFG_OKIM6295_ADD("oki", XTAL_16MHz/16, PIN7_HIGH)  /* 1MHz (16MHz/16 for most, 8Mhz/8 for Super-X) */
+	MCFG_OKIM6295_ADD("oki", 16_MHz_XTAL/16, PIN7_HIGH)  /* 1MHz (16MHz/16 for most, 8Mhz/8 for Super-X) */
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
 MACHINE_CONFIG_END
 
 MACHINE_CONFIG_START(dooyong_z80_ym2203_state::lastday)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_16MHz/2)   /* 8MHz verified for Last Day / D-day */
+	MCFG_CPU_ADD("maincpu", Z80, 16_MHz_XTAL/2)   /* 8MHz verified for Last Day / D-day */
 	MCFG_CPU_PROGRAM_MAP(lastday_map)
 	MCFG_CPU_VBLANK_INT_DRIVER("screen", dooyong_state,  irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_16MHz/4)  /* 4MHz verified for Last Day / D-day */
+	MCFG_CPU_ADD("audiocpu", Z80, 16_MHz_XTAL/4)  /* 4MHz verified for Last Day / D-day */
 	MCFG_CPU_PROGRAM_MAP(lastday_sound_map)
 
 	MCFG_MACHINE_START_OVERRIDE(dooyong_z80_state, cpu_z80)
@@ -1513,12 +1513,12 @@ MACHINE_CONFIG_START(dooyong_z80_ym2203_state::lastday)
 
 	MCFG_GENERIC_LATCH_8_ADD("soundlatch")
 
-	MCFG_SOUND_ADD("ym1", YM2203, XTAL_16MHz/4)  /* 4MHz verified for Last Day / D-day */
+	MCFG_SOUND_ADD("ym1", YM2203, 16_MHz_XTAL/4)  /* 4MHz verified for Last Day / D-day */
 	MCFG_YM2203_IRQ_HANDLER(WRITELINE(dooyong_z80_ym2203_state, irqhandler_2203_1))
 	MCFG_AY8910_PORT_A_READ_CB(READ8(dooyong_z80_ym2203_state, unk_r))
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
 
-	MCFG_SOUND_ADD("ym2", YM2203, XTAL_16MHz/4)  /* 4MHz verified for Last Day / D-day */
+	MCFG_SOUND_ADD("ym2", YM2203, 16_MHz_XTAL/4)  /* 4MHz verified for Last Day / D-day */
 	MCFG_YM2203_IRQ_HANDLER(WRITELINE(dooyong_z80_ym2203_state, irqhandler_2203_2))
 	MCFG_AY8910_PORT_A_READ_CB(READ8(dooyong_z80_ym2203_state, unk_r))
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
@@ -1567,11 +1567,11 @@ MACHINE_CONFIG_END
 MACHINE_CONFIG_START(dooyong_z80_ym2203_state::pollux)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_16MHz/2)   /* 8Mhz */
+	MCFG_CPU_ADD("maincpu", Z80, 16_MHz_XTAL/2)   /* 8Mhz */
 	MCFG_CPU_PROGRAM_MAP(pollux_map)
 	MCFG_CPU_VBLANK_INT_DRIVER("screen", dooyong_state,  irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_16MHz/4)  /* 4Mhz */
+	MCFG_CPU_ADD("audiocpu", Z80, 16_MHz_XTAL/4)  /* 4Mhz */
 	MCFG_CPU_PROGRAM_MAP(pollux_sound_map)
 
 	MCFG_MACHINE_START_OVERRIDE(dooyong_z80_state, cpu_z80)
@@ -1646,11 +1646,11 @@ MACHINE_CONFIG_END
 MACHINE_CONFIG_START(dooyong_z80_state::flytiger)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_16MHz/2)   /* 8MHz */
+	MCFG_CPU_ADD("maincpu", Z80, 16_MHz_XTAL/2)   /* 8MHz */
 	MCFG_CPU_PROGRAM_MAP(flytiger_map)
 	MCFG_CPU_VBLANK_INT_DRIVER("screen", dooyong_state,  irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_16MHz/4)  /* 4Mhz */
+	MCFG_CPU_ADD("audiocpu", Z80, 16_MHz_XTAL/4)  /* 4Mhz */
 	MCFG_CPU_PROGRAM_MAP(bluehawk_sound_map)
 
 	MCFG_MACHINE_START_OVERRIDE(dooyong_z80_state, cpu_z80)
@@ -1685,11 +1685,11 @@ MACHINE_CONFIG_END
 MACHINE_CONFIG_START(dooyong_z80_state::primella)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_16MHz/2)   /* 8MHz */
+	MCFG_CPU_ADD("maincpu", Z80, 16_MHz_XTAL/2)   /* 8MHz */
 	MCFG_CPU_PROGRAM_MAP(primella_map)
 	MCFG_CPU_VBLANK_INT_DRIVER("screen", dooyong_state,  irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_16MHz/4)   /* 4MHz */
+	MCFG_CPU_ADD("audiocpu", Z80, 16_MHz_XTAL/4)   /* 4MHz */
 	MCFG_CPU_PROGRAM_MAP(bluehawk_sound_map)
 
 	MCFG_MACHINE_START_OVERRIDE(dooyong_z80_state, cpu_z80)
@@ -1735,10 +1735,10 @@ TIMER_DEVICE_CALLBACK_MEMBER(dooyong_68k_state::scanline)
 MACHINE_CONFIG_START(rshark_state::dooyong_68k)
 
 	// basic machine hardware
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_8MHz)  // 8MHz measured on Super-X
+	MCFG_CPU_ADD("maincpu", M68000, 8_MHz_XTAL)  // 8MHz measured on Super-X
 	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", dooyong_68k_state, scanline, "screen", 0, 1)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_8MHz/2)  // 4MHz measured on Super-X
+	MCFG_CPU_ADD("audiocpu", Z80, 8_MHz_XTAL/2)  // 4MHz measured on Super-X
 	MCFG_CPU_PROGRAM_MAP(bluehawk_sound_map)
 
 	// video hardware
@@ -1784,11 +1784,11 @@ MACHINE_CONFIG_END
 MACHINE_CONFIG_START(popbingo_state::popbingo)
 
 	// basic machine hardware
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_20MHz/2)   // 10MHz measured
+	MCFG_CPU_ADD("maincpu", M68000, 20_MHz_XTAL/2)   // 10MHz measured
 	MCFG_CPU_PROGRAM_MAP(popbingo_map)
 	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", dooyong_68k_state, scanline, "screen", 0, 1)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_16MHz/4)     // 4MHz measured
+	MCFG_CPU_ADD("audiocpu", Z80, 16_MHz_XTAL/4)     // 4MHz measured
 	MCFG_CPU_PROGRAM_MAP(bluehawk_sound_map)
 
 	// video hardware

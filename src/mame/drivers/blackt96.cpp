@@ -126,7 +126,7 @@ protected:
 	// overrides
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
-	virtual void video_start() override;	
+	virtual void video_start() override;
 
 private:
 	// driver variables
@@ -249,7 +249,7 @@ static ADDRESS_MAP_START( blackt96_map, AS_PROGRAM, 16, blackt96_state )
 
 	AM_RANGE(0x100000, 0x100fff) AM_RAM_WRITE(tx_vram_w) AM_SHARE("tilemapram") // text tilemap
 	AM_RANGE(0x200000, 0x207fff) AM_DEVREADWRITE("sprites", snk68_spr_device, spriteram_r, spriteram_w) AM_SHARE("spriteram")   // only partially populated
-	AM_RANGE(0x400000, 0x400fff) AM_RAM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0x400000, 0x400fff) AM_RAM_DEVWRITE("palette", palette_device, write16) AM_SHARE("palette")
 
 	AM_RANGE(0xc00000, 0xc03fff) AM_RAM // main ram
 ADDRESS_MAP_END
@@ -412,7 +412,7 @@ READ8_MEMBER(blackt96_state::blackt96_soundio_port_c_r)
 
 WRITE8_MEMBER(blackt96_state::blackt96_soundio_port_c_w)
 {
-//	logerror("%s: blackt96_soundio_port_c_w (PREV DATA %02x CURR DATA %02x)\n", machine().describe_context().c_str(), m_port_c_data, data);
+//  logerror("%s: blackt96_soundio_port_c_w (PREV DATA %02x CURR DATA %02x)\n", machine().describe_context().c_str(), m_port_c_data, data);
 	// data & 0x80 unuused?
 	// data & 0x40 is read - see above
 
@@ -441,7 +441,7 @@ WRITE8_MEMBER(blackt96_state::blackt96_soundio_port_c_w)
 	{
 		//logerror("%s: blackt96_soundio_port_c_w (write to OKI %02x) (oki selected is %02x)\n", machine().describe_context().c_str(), m_port_b_latch, m_oki_selected);
 		if (m_oki_selected == 0) m_oki[0]->write(space, 0, m_port_b_latch);
-		else if (m_oki_selected == 1) m_oki[1]->write(space, 0, m_port_b_latch);			
+		else if (m_oki_selected == 1) m_oki[1]->write(space, 0, m_port_b_latch);
 	}
 
 	if (((data & 0x01) == 0x00) && ((m_port_c_data & 0x01) == 0x01)) // high -> low on bit 0x01 reads to selected OKI

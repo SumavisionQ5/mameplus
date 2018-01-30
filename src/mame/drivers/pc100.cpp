@@ -326,7 +326,7 @@ static ADDRESS_MAP_START(pc100_io, AS_IO, 16, pc100_state)
 	AM_RANGE(0x38, 0x39) AM_WRITE8(pc100_crtc_addr_w,0x00ff) //crtc address reg
 	AM_RANGE(0x3a, 0x3b) AM_WRITE8(pc100_crtc_data_w,0x00ff) //crtc data reg
 	AM_RANGE(0x3c, 0x3f) AM_READWRITE8(pc100_vs_vreg_r,pc100_vs_vreg_w,0x00ff) //crtc vertical start position
-	AM_RANGE(0x40, 0x5f) AM_RAM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0x40, 0x5f) AM_RAM_DEVWRITE("palette", palette_device, write16) AM_SHARE("palette")
 //  AM_RANGE(0x60, 0x61) crtc command (16-bit wide)
 	AM_RANGE(0x80, 0x81) AM_READWRITE(pc100_kanji_r,pc100_kanji_w)
 	AM_RANGE(0x82, 0x83) AM_WRITENOP //kanji-related?
@@ -529,7 +529,7 @@ MACHINE_CONFIG_START(pc100_state::pc100)
 	MCFG_UPD765_INTRQ_CALLBACK(WRITELINE(pc100_state, irqnmi_w))
 	MCFG_UPD765_DRQ_CALLBACK(WRITELINE(pc100_state, drqnmi_w))
 
-	MCFG_DEVICE_ADD("rtc", MSM58321, XTAL_32_768kHz)
+	MCFG_DEVICE_ADD("rtc", MSM58321, XTAL(32'768))
 	MCFG_MSM58321_D0_HANDLER(WRITELINE(pc100_state, rtc_portc_0_w))
 	MCFG_MSM58321_D1_HANDLER(WRITELINE(pc100_state, rtc_portc_1_w))
 	MCFG_MSM58321_D2_HANDLER(WRITELINE(pc100_state, rtc_portc_2_w))

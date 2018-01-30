@@ -463,7 +463,7 @@
 #include "majorpkr.lh"
 
 
-#define MASTER_CLOCK    XTAL_12MHz
+#define MASTER_CLOCK    XTAL(12'000'000)
 #define CPU_CLOCK       (MASTER_CLOCK / 2)   // 6 MHz, measured.
 #define OKI_CLOCK       (MASTER_CLOCK / 8)   // 1.5 MHz, measured.
 #define CRTC_CLOCK      (MASTER_CLOCK / 16)  // 750 kHz, measured.
@@ -747,7 +747,7 @@ static ADDRESS_MAP_START( map, AS_PROGRAM, 8, majorpkr_state )
 ADDRESS_MAP_END
 
 static ADDRESS_MAP_START( palettebanks, AS_PROGRAM, 8, majorpkr_state )
-	AM_RANGE(0x0000, 0x1fff) AM_RAM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0x0000, 0x1fff) AM_RAM_DEVWRITE("palette", palette_device, write8) AM_SHARE("palette")
 ADDRESS_MAP_END
 
 static ADDRESS_MAP_START( vrambanks, AS_PROGRAM, 8, majorpkr_state )

@@ -158,7 +158,7 @@ WRITE16_MEMBER(realbrk_state::backup_ram_w)
 static ADDRESS_MAP_START( base_mem, AS_PROGRAM, 16, realbrk_state )
 	AM_RANGE(0x000000, 0x0fffff) AM_ROM                                         // ROM
 	AM_RANGE(0x200000, 0x203fff) AM_RAM                   AM_SHARE("spriteram") // Sprites
-	AM_RANGE(0x400000, 0x40ffff) AM_RAM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")   // Palette
+	AM_RANGE(0x400000, 0x40ffff) AM_RAM_DEVWRITE("palette", palette_device, write16) AM_SHARE("palette")   // Palette
 	AM_RANGE(0x600000, 0x601fff) AM_RAM_WRITE(vram_0_w) AM_SHARE("vram_0")  // Background   (0)
 	AM_RANGE(0x602000, 0x603fff) AM_RAM_WRITE(vram_1_w) AM_SHARE("vram_1")  // Background   (1)
 	AM_RANGE(0x604000, 0x604fff) AM_RAM_WRITE(vram_2_w) AM_SHARE("vram_2")  // Text         (2)
@@ -757,7 +757,7 @@ INTERRUPT_GEN_MEMBER(realbrk_state::interrupt)
 MACHINE_CONFIG_START(realbrk_state::realbrk)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu",M68000, XTAL_32MHz / 2)          /* !! TMP68301 !! */
+	MCFG_CPU_ADD("maincpu",M68000, XTAL(32'000'000) / 2)          /* !! TMP68301 !! */
 	MCFG_CPU_PROGRAM_MAP(realbrk_mem)
 	MCFG_CPU_VBLANK_INT_DRIVER("screen", realbrk_state,  interrupt)
 	MCFG_CPU_IRQ_ACKNOWLEDGE_DEVICE("tmp68301",tmp68301_device,irq_callback)
@@ -782,11 +782,11 @@ MACHINE_CONFIG_START(realbrk_state::realbrk)
 	/* sound hardware */
 	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ymz", YMZ280B, XTAL_33_8688MHz / 2)
+	MCFG_SOUND_ADD("ymz", YMZ280B, XTAL(33'868'800) / 2)
 	MCFG_SOUND_ROUTE(0, "lspeaker", 0.50)
 	MCFG_SOUND_ROUTE(1, "rspeaker", 0.50)
 
-	MCFG_SOUND_ADD("ymsnd", YM2413, XTAL_3_579545MHz)
+	MCFG_SOUND_ADD("ymsnd", YM2413, XTAL(3'579'545))
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.50)
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.50)
 MACHINE_CONFIG_END

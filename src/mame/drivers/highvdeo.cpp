@@ -436,7 +436,7 @@ static ADDRESS_MAP_START( tv_tcf_map, AS_PROGRAM, 16, highvdeo_state )
 	AM_RANGE(0x00000, 0x003ff) AM_RAM /*irq vector area*/
 	AM_RANGE(0x00400, 0x03fff) AM_RAM AM_SHARE("nvram")
 	AM_RANGE(0x40000, 0x5d4bf) AM_RAM AM_SHARE("blit_ram") /*blitter ram*/
-	AM_RANGE(0x7fe00, 0x7ffff) AM_RAM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0x7fe00, 0x7ffff) AM_RAM_DEVWRITE("palette", palette_device, write16) AM_SHARE("palette")
 	AM_RANGE(0x80000, 0xbffff) AM_ROMBANK("bank1")
 	AM_RANGE(0xc0000, 0xfffff) AM_ROM AM_REGION("boot_prg",0)
 ADDRESS_MAP_END
@@ -1134,7 +1134,7 @@ ADDRESS_MAP_END
 
 
 MACHINE_CONFIG_START(highvdeo_state::tv_vcf)
-	MCFG_CPU_ADD("maincpu", V30, XTAL_12MHz/2 ) // ?
+	MCFG_CPU_ADD("maincpu", V30, XTAL(12'000'000)/2 ) // ?
 	MCFG_CPU_PROGRAM_MAP(tv_vcf_map)
 	MCFG_CPU_IO_MAP(tv_vcf_io)
 	MCFG_CPU_VBLANK_INT_DRIVER("screen", highvdeo_state,  vblank_irq)
@@ -1157,7 +1157,7 @@ MACHINE_CONFIG_START(highvdeo_state::tv_vcf)
 	MCFG_SPEAKER_STANDARD_MONO("mono")
 
 	//OkiM6376
-	MCFG_SOUND_ADD("oki", OKIM6376, XTAL_12MHz/2/2/20)//Guess, gives approx. same sample rate as previous emulation
+	MCFG_SOUND_ADD("oki", OKIM6376, XTAL(12'000'000)/2/2/20)//Guess, gives approx. same sample rate as previous emulation
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
 MACHINE_CONFIG_END
@@ -1233,7 +1233,7 @@ MACHINE_CONFIG_START(highvdeo_state::brasil)
 	/* sound hardware */
 	MCFG_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("oki", OKIM6376, XTAL_12MHz/2/2/20)//Guess, gives same sample rate as previous emulation
+	MCFG_SOUND_ADD("oki", OKIM6376, XTAL(12'000'000)/2/2/20)//Guess, gives same sample rate as previous emulation
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 MACHINE_CONFIG_END
 
@@ -1259,7 +1259,7 @@ MACHINE_CONFIG_START(highvdeo_state::grancapi)
 	/* sound hardware */
 	MCFG_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("oki", OKIM6376, XTAL_12MHz/2/2/20)//Guess, gives same sample rate as previous emulation
+	MCFG_SOUND_ADD("oki", OKIM6376, XTAL(12'000'000)/2/2/20)//Guess, gives same sample rate as previous emulation
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 MACHINE_CONFIG_END
 
@@ -1285,7 +1285,7 @@ MACHINE_CONFIG_START(highvdeo_state::magicbom)
 	/* sound hardware */
 	MCFG_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("oki", OKIM6376, XTAL_12MHz/2/2/20)//Guess, gives same sample rate as previous emulation
+	MCFG_SOUND_ADD("oki", OKIM6376, XTAL(12'000'000)/2/2/20)//Guess, gives same sample rate as previous emulation
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 MACHINE_CONFIG_END
 

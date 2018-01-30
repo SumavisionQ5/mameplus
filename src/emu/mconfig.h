@@ -69,7 +69,9 @@ public:
 
 	// helpers during configuration; not for general use
 	device_t *device_add(device_t *owner, const char *tag, device_type type, u32 clock);
+	device_t *device_add(device_t *owner, const char *tag, device_type type, const XTAL &xtal);
 	device_t *device_replace(device_t *owner, const char *tag, device_type type, u32 clock);
+	device_t *device_replace(device_t *owner, const char *tag, device_type type, const XTAL &xtal);
 	device_t *device_remove(device_t *owner, const char *tag);
 	device_t *device_find(device_t *owner, const char *tag);
 
@@ -82,8 +84,6 @@ private:
 	emu_options &           m_options;
 	std::unique_ptr<device_t>  m_root_device;
 };
-
-typedef device_delegate<void (machine_config &)> machine_config_delegate;
 
 
 //*************************************************************************/

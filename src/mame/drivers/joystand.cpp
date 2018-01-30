@@ -462,7 +462,7 @@ static ADDRESS_MAP_START( joystand_map, AS_PROGRAM, 16, joystand_state )
 	AM_RANGE(0x600000, 0x603fff) AM_RAM_WRITE(bg2_w) AM_SHARE("bg2_ram")
 	AM_RANGE(0x604000, 0x605fff) AM_RAM_WRITE(bg1_w) AM_SHARE("bg1_ram")
 	AM_RANGE(0x606000, 0x607fff) AM_RAM_WRITE(bg15_1_w) AM_SHARE("bg15_1_ram") // r5g5b5 200x200 tile-based
-	AM_RANGE(0x608000, 0x609fff) AM_RAM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0x608000, 0x609fff) AM_RAM_DEVWRITE("palette", palette_device, write16) AM_SHARE("palette")
 	AM_RANGE(0x60c000, 0x60c003) AM_RAM AM_SHARE("scroll") // write
 	AM_RANGE(0x60c00c, 0x60c00d) AM_RAM AM_SHARE("enable") // write
 
@@ -583,7 +583,7 @@ INTERRUPT_GEN_MEMBER(joystand_state::joystand_interrupt)
 MACHINE_CONFIG_START(joystand_state::joystand)
 
 	// basic machine hardware
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_16MHz) // !! TMP68301 !!
+	MCFG_CPU_ADD("maincpu", M68000, XTAL(16'000'000)) // !! TMP68301 !!
 	MCFG_CPU_PROGRAM_MAP(joystand_map)
 	MCFG_CPU_VBLANK_INT_DRIVER("screen", joystand_state, joystand_interrupt)
 	MCFG_CPU_IRQ_ACKNOWLEDGE_DEVICE("tmp68301",tmp68301_device,irq_callback)
@@ -609,10 +609,10 @@ MACHINE_CONFIG_START(joystand_state::joystand)
 	// sound hardware
 	MCFG_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym2413", YM2413, XTAL_3_579545MHz)
+	MCFG_SOUND_ADD("ym2413", YM2413, XTAL(3'579'545))
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
 
-	MCFG_OKIM6295_ADD("oki", XTAL_16MHz / 16, PIN7_HIGH) // pin 7 not verified
+	MCFG_OKIM6295_ADD("oki", XTAL(16'000'000) / 16, PIN7_HIGH) // pin 7 not verified
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
 
 	// cart
@@ -631,7 +631,7 @@ MACHINE_CONFIG_START(joystand_state::joystand)
 
 	// devices
 	MCFG_EEPROM_SERIAL_93C46_ADD("eeprom")
-	MCFG_DEVICE_ADD("rtc", MSM6242, XTAL_32_768kHz)
+	MCFG_DEVICE_ADD("rtc", MSM6242, XTAL(32'768))
 MACHINE_CONFIG_END
 
 

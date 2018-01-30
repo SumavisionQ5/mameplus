@@ -284,7 +284,7 @@ TODO:
 #include "speaker.h"
 
 
-#define MAIN_XTAL   XTAL_24MHz
+#define MAIN_XTAL   XTAL(24'000'000)
 
 
 /*************************************
@@ -298,7 +298,7 @@ static ADDRESS_MAP_START( common_maincpu_map, AS_PROGRAM, 8, bublbobl_state )
 	AM_RANGE(0xc000, 0xdcff) AM_RAM AM_SHARE("videoram")
 	AM_RANGE(0xdd00, 0xdfff) AM_RAM AM_SHARE("objectram")
 	AM_RANGE(0xe000, 0xf7ff) AM_RAM AM_SHARE("share1")
-	AM_RANGE(0xf800, 0xf9ff) AM_RAM_DEVWRITE("palette", palette_device, write) AM_SHARE("palette")
+	AM_RANGE(0xf800, 0xf9ff) AM_RAM_DEVWRITE("palette", palette_device, write8) AM_SHARE("palette")
 ADDRESS_MAP_END
 
 static ADDRESS_MAP_START( bublbobl_maincpu_map, AS_PROGRAM, 8, bublbobl_state )
@@ -1003,7 +1003,7 @@ MACHINE_CONFIG_START(bublbobl_state::bublbobl_nomcu)
 MACHINE_CONFIG_END
 
 MACHINE_CONFIG_DERIVED(bublbobl_state::bublbobl, bublbobl_nomcu)
-	MCFG_CPU_ADD("mcu", M6801, XTAL_4MHz) // actually 6801U4 - xtal is 4MHz, divided by 4 internally
+	MCFG_CPU_ADD("mcu", M6801, XTAL(4'000'000)) // actually 6801U4 - xtal is 4MHz, divided by 4 internally
 	MCFG_CPU_PROGRAM_MAP(mcu_map)
 
 	MCFG_SCREEN_MODIFY("screen")
@@ -1064,7 +1064,7 @@ MACHINE_RESET_MEMBER(bub68705_state, bub68705)
 MACHINE_CONFIG_DERIVED(bub68705_state::bub68705, bublbobl_nomcu)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("mcu", M68705P3, XTAL_4MHz) // xtal is 4MHz, divided by 4 internally
+	MCFG_CPU_ADD("mcu", M68705P3, XTAL(4'000'000)) // xtal is 4MHz, divided by 4 internally
 	MCFG_M68705_PORTC_R_CB(IOPORT("IN0"))
 	MCFG_M68705_PORTA_W_CB(WRITE8(bub68705_state, port_a_w))
 	MCFG_M68705_PORTB_W_CB(WRITE8(bub68705_state, port_b_w))
