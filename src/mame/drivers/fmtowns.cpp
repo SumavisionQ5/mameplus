@@ -267,34 +267,6 @@ void towns_state::init_serial_rom()
 	m_towns_serial_rom[25] = 0x10;
 }
 
-void towns_state::init_rtc()
-{
-	system_time systm;
-
-	machine().base_datetime(systm);
-
-	// seconds
-	m_towns_rtc_reg[0] = systm.local_time.second % 10;
-	m_towns_rtc_reg[1] = systm.local_time.second / 10;
-	// minutes
-	m_towns_rtc_reg[2] = systm.local_time.minute % 10;
-	m_towns_rtc_reg[3] = systm.local_time.minute / 10;
-	// hours
-	m_towns_rtc_reg[4] = systm.local_time.hour % 10;
-	m_towns_rtc_reg[5] = systm.local_time.hour / 10;
-	// weekday
-	m_towns_rtc_reg[6] = systm.local_time.weekday;
-	// day
-	m_towns_rtc_reg[7] = systm.local_time.mday % 10;
-	m_towns_rtc_reg[8] = systm.local_time.mday / 10;
-	// month
-	m_towns_rtc_reg[9] = (systm.local_time.month + 1) % 10;
-	m_towns_rtc_reg[10] = (systm.local_time.month + 1) / 10;
-	// year
-	m_towns_rtc_reg[11] = (systm.local_time.year - 2000) % 10;
-	m_towns_rtc_reg[12] = (systm.local_time.year - 2000) / 10;
-}
-
 READ8_MEMBER(towns_state::towns_system_r)
 {
 	uint8_t ret = 0;
@@ -417,9 +389,6 @@ void towns_state::device_timer(emu_timer &timer, device_timer_id id, int param, 
 {
 	switch(id)
 	{
-	case TIMER_RTC:
-		rtc_second();
-		break;
 	case TIMER_FREERUN:
 		freerun_inc();
 		break;
@@ -589,13 +558,15 @@ WRITE8_MEMBER(towns_state::towns_floppy_w)
 			logerror("FDC: Data %02x\n",data);
 			break;
 		case 0x08:
+		{
 			// bit 5 - CLKSEL
-			if(m_towns_selected_drive != 0)
+			// docs are unclear about this but there's only one motor control line and turning on only the selected drive doesn't work properly.
+			for(int i = 0; i < 4; i++)
 			{
-				if(sel[m_towns_selected_drive-1] != nullptr)
+				if(sel[i] != nullptr)
 				{
-					sel[m_towns_selected_drive-1]->mon_w((~data & 0x10)>>4);
-					sel[m_towns_selected_drive-1]->ss_w((data & 0x04)>>2);
+					sel[i]->mon_w((~data & 0x10)>>4);
+					sel[i]->ss_w((data & 0x04)>>2);
 				}
 			}
 			m_fdc->dden_w(BIT(~data, 1));
@@ -604,6 +575,7 @@ WRITE8_MEMBER(towns_state::towns_floppy_w)
 			//logerror("FDC: Config drive%i %02x\n",m_towns_selected_drive-1,data);
 
 			break;
+		}
 		case 0x0c:  // drive select
 			switch(data & 0x0f)
 			{
@@ -876,6 +848,9 @@ READ8_MEMBER(towns_state::towns_sound_ctrl_r)
 				ret |= 0x01;
 			if(m_towns_pcm_irq_flag)
 				ret |= 0x08;
+			break;
+		case 0x02:
+			ret = m_towns_pcm_channel_mask;
 			break;
 		case 0x03:
 			ret = m_towns_pcm_channel_flag;
@@ -1609,7 +1584,7 @@ void towns_state::towns_delay_cdda(cdrom_image_device* dev)
 void towns_state::towns_cdrom_execute_command(cdrom_image_device* device)
 {
 	towns_cdrom_set_irq(TOWNS_CD_IRQ_MPU,0); // TODO: this isn't sufficiently tested
-	if(device->get_cdrom_file() == nullptr)
+	if((device->get_cdrom_file() == nullptr) && (m_towns_cd.command != 0xa0))
 	{  // No CD in drive
 		if(m_towns_cd.command & 0x20)
 		{
@@ -1956,67 +1931,49 @@ WRITE8_MEMBER(towns_state::towns_cdrom_w)
  */
 READ8_MEMBER(towns_state::towns_rtc_r)
 {
-	return 0x80 | m_towns_rtc_reg[m_towns_rtc_select];
+	return (m_rtc_busy ? 0 : 0x80) | m_rtc_d;
 }
 
 WRITE8_MEMBER(towns_state::towns_rtc_w)
 {
-	m_towns_rtc_data = data;
+	m_rtc->d0_w(data & 1 ? ASSERT_LINE : CLEAR_LINE);
+	m_rtc->d1_w(data & 2 ? ASSERT_LINE : CLEAR_LINE);
+	m_rtc->d2_w(data & 4 ? ASSERT_LINE : CLEAR_LINE);
+	m_rtc->d3_w(data & 8 ? ASSERT_LINE : CLEAR_LINE);
 }
 
 WRITE8_MEMBER(towns_state::towns_rtc_select_w)
 {
-	if(data & 0x80)
-	{
-		if(data & 0x01)
-			m_towns_rtc_select = m_towns_rtc_data & 0x0f;
-	}
+	m_rtc->cs1_w(data & 0x80 ? ASSERT_LINE : CLEAR_LINE);
+	m_rtc->cs2_w(data & 0x80 ? ASSERT_LINE : CLEAR_LINE);
+	m_rtc->read_w(data & 4 ? ASSERT_LINE : CLEAR_LINE);
+	m_rtc->write_w(data & 2 ? ASSERT_LINE : CLEAR_LINE);
+	m_rtc->address_write_w(data & 1 ? ASSERT_LINE : CLEAR_LINE);
 }
 
-void towns_state::rtc_hour()
+WRITE_LINE_MEMBER(towns_state::rtc_d0_w)
 {
-	m_towns_rtc_reg[4]++;
-	if(m_towns_rtc_reg[4] > 4 && m_towns_rtc_reg[5] == 2)
-	{
-		m_towns_rtc_reg[4] = 0;
-		m_towns_rtc_reg[5] = 0;
-	}
-	else if(m_towns_rtc_reg[4] > 9)
-	{
-		m_towns_rtc_reg[4] = 0;
-		m_towns_rtc_reg[5]++;
-	}
+	m_rtc_d = (m_rtc_d & ~1) | (state == ASSERT_LINE ? 1 : 0);
 }
 
-void towns_state::rtc_minute()
+WRITE_LINE_MEMBER(towns_state::rtc_d1_w)
 {
-	m_towns_rtc_reg[2]++;
-	if(m_towns_rtc_reg[2] > 9)
-	{
-		m_towns_rtc_reg[2] = 0;
-		m_towns_rtc_reg[3]++;
-		if(m_towns_rtc_reg[3] > 5)
-		{
-			m_towns_rtc_reg[3] = 0;
-			rtc_hour();
-		}
-	}
+	m_rtc_d = (m_rtc_d & ~2) | (state == ASSERT_LINE ? 2 : 0);
 }
 
-void towns_state::rtc_second()
+WRITE_LINE_MEMBER(towns_state::rtc_d2_w)
 {
-	// increase RTC time by one second
-	m_towns_rtc_reg[0]++;
-	if(m_towns_rtc_reg[0] > 9)
-	{
-		m_towns_rtc_reg[0] = 0;
-		m_towns_rtc_reg[1]++;
-		if(m_towns_rtc_reg[1] > 5)
-		{
-			m_towns_rtc_reg[1] = 0;
-			rtc_minute();
-		}
-	}
+	m_rtc_d = (m_rtc_d & ~4) | (state == ASSERT_LINE ? 4 : 0);
+}
+
+WRITE_LINE_MEMBER(towns_state::rtc_d3_w)
+{
+	m_rtc_d = (m_rtc_d & ~8) | (state == ASSERT_LINE ? 8 : 0);
+}
+
+WRITE_LINE_MEMBER(towns_state::rtc_busy_w)
+{
+	m_rtc_busy = state == ASSERT_LINE ? true : false;
 }
 
 // SCSI controller - I/O ports 0xc30 and 0xc32
@@ -2257,7 +2214,7 @@ static ADDRESS_MAP_START(towns_mem, AS_PROGRAM, 32, towns_state)
 	AM_RANGE(0xc2100000, 0xc213ffff) AM_ROM AM_REGION("user",0x180000)  // FONT ROM
 	AM_RANGE(0xc2140000, 0xc2141fff) AM_READWRITE8(towns_cmos_r,towns_cmos_w,0xffffffff) // CMOS (mirror?)
 	AM_RANGE(0xc2180000, 0xc21fffff) AM_ROM AM_REGION("user",0x080000)  // F20 ROM
-	AM_RANGE(0xc2200000, 0xc220ffff) AM_DEVREADWRITE8("pcm", rf5c68_device, rf5c68_mem_r, rf5c68_mem_w, 0xffffffff)  // WAVE RAM
+	AM_RANGE(0xc2200000, 0xc2200fff) AM_DEVREADWRITE8("pcm", rf5c68_device, rf5c68_mem_r, rf5c68_mem_w, 0xffffffff)  // WAVE RAM
 	AM_RANGE(0xfffc0000, 0xffffffff) AM_ROM AM_REGION("user",0x200000)  // SYSTEM ROM
 ADDRESS_MAP_END
 
@@ -2282,7 +2239,7 @@ static ADDRESS_MAP_START(marty_mem, AS_PROGRAM, 16, towns_state)
 	AM_RANGE(0x00d00000, 0x00dfffff) AM_DEVREADWRITE8("icmemcard", fmt_icmem_device, mem_read, mem_write, 0xffff)
 	AM_RANGE(0x00e80000, 0x00efffff) AM_ROM AM_REGION("user",0x100000)  // DIC ROM
 	AM_RANGE(0x00f00000, 0x00f7ffff) AM_ROM AM_REGION("user",0x180000)  // FONT
-	AM_RANGE(0x00f80000, 0x00f8ffff) AM_DEVREADWRITE8("pcm", rf5c68_device, rf5c68_mem_r, rf5c68_mem_w, 0xffff)  // WAVE RAM
+	AM_RANGE(0x00f80000, 0x00f80fff) AM_DEVREADWRITE8("pcm", rf5c68_device, rf5c68_mem_r, rf5c68_mem_w, 0xffff)  // WAVE RAM
 	AM_RANGE(0x00fc0000, 0x00ffffff) AM_ROM AM_REGION("user",0x200000)  // SYSTEM ROM
 ADDRESS_MAP_END
 
@@ -2306,7 +2263,7 @@ static ADDRESS_MAP_START(ux_mem, AS_PROGRAM, 16, towns_state)
 	AM_RANGE(0x00e00000, 0x00e7ffff) AM_ROM AM_REGION("user",0x000000)  // OS
 	AM_RANGE(0x00e80000, 0x00efffff) AM_ROM AM_REGION("user",0x100000)  // DIC ROM
 	AM_RANGE(0x00f00000, 0x00f7ffff) AM_ROM AM_REGION("user",0x180000)  // FONT
-	AM_RANGE(0x00f80000, 0x00f8ffff) AM_DEVREADWRITE8("pcm", rf5c68_device, rf5c68_mem_r, rf5c68_mem_w, 0xffff)  // WAVE RAM
+	AM_RANGE(0x00f80000, 0x00f80fff) AM_DEVREADWRITE8("pcm", rf5c68_device, rf5c68_mem_r, rf5c68_mem_w, 0xffff)  // WAVE RAM
 	AM_RANGE(0x00fc0000, 0x00ffffff) AM_ROM AM_REGION("user",0x200000)  // SYSTEM ROM
 ADDRESS_MAP_END
 
@@ -2690,8 +2647,6 @@ void towns_state::driver_start()
 	//towns_sprram = std::make_unique<uint8_t[]>(0x20000);
 	m_towns_serial_rom = std::make_unique<uint8_t[]>(256/8);
 	init_serial_rom();
-	init_rtc();
-	m_towns_rtc_timer = timer_alloc(TIMER_RTC);
 	m_towns_kb_timer = timer_alloc(TIMER_KEYBOARD);
 	m_towns_mouse_timer = timer_alloc(TIMER_MOUSE);
 	m_towns_wait_timer = timer_alloc(TIMER_WAIT);
@@ -2750,10 +2705,16 @@ void towns_state::machine_reset()
 	m_intervaltimer2_timeout_flag = 0;
 	m_intervaltimer2_timeout_flag2 = 0;
 	m_intervaltimer2_irqmask = 1;  // masked
-	m_towns_rtc_timer->adjust(attotime::zero,0,attotime::from_hz(1));
 	m_towns_kb_timer->adjust(attotime::zero,0,attotime::from_msec(10));
 	m_towns_freerun_counter->adjust(attotime::zero,0,attotime::from_usec(1));
 	m_serial_irq_source = 0;
+	m_rtc_d = 0;
+	m_rtc_busy = false;
+	m_vram_mask_addr = 0;
+	m_towns_pcm_channel_flag = 0;
+	m_towns_pcm_channel_mask = 0xff;
+	m_towns_pcm_irq_flag = 0;
+	m_towns_fm_irq_flag = 0;
 }
 
 READ8_MEMBER(towns_state::get_slave_ack)
@@ -2918,6 +2879,15 @@ MACHINE_CONFIG_START(towns_state::towns_base)
 	MCFG_RAM_ADD(RAM_TAG)
 	MCFG_RAM_DEFAULT_SIZE("6M")
 	MCFG_RAM_EXTRA_OPTIONS("2M,4M,8M,16M,32M,64M,96M")
+
+	MCFG_DEVICE_ADD("rtc58321", MSM58321, 32768_Hz_XTAL)
+	MCFG_MSM58321_D0_HANDLER(WRITELINE(towns_state, rtc_d0_w))
+	MCFG_MSM58321_D1_HANDLER(WRITELINE(towns_state, rtc_d1_w))
+	MCFG_MSM58321_D2_HANDLER(WRITELINE(towns_state, rtc_d2_w))
+	MCFG_MSM58321_D3_HANDLER(WRITELINE(towns_state, rtc_d3_w))
+	MCFG_MSM58321_BUSY_HANDLER(WRITELINE(towns_state, rtc_busy_w))
+	MCFG_MSM58321_YEAR0(2000)
+	MCFG_MSM58321_DEFAULT_24H(true)
 MACHINE_CONFIG_END
 
 MACHINE_CONFIG_START(towns_state::towns)
