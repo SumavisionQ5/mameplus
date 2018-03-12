@@ -639,7 +639,7 @@ ROM_START( bbh )
 	EAGLE_BIOS
 
 	ROM_REGION( 0x0880, "atmel", 0 ) /* Atmel 90S2313 AVR internal CPU code */
-	ROM_LOAD( "bb15-us.u53", 0x0000, 0x0880, NO_DUMP )
+	ROM_LOAD( "e2-bbh0.u53", 0x0000, 0x0880, NO_DUMP )
 
 	DISK_REGION( PCI_ID_IDE":ide:0:hdd:image" )
 	DISK_IMAGE("bbh_v1.00.14", 0, SHA1(dd56f758c3e421005e06ac24c21d12f0f29b0f44)) /* Build 10:59:51, Feb 25 2003 */
@@ -725,7 +725,7 @@ GAME( 2004, gtfore05a,  gtfore05, gtfore05, iteagle,  iteagle_state, 0, ROT0, "I
 GAME( 2004, gtfore05b,  gtfore05, gtfore05, iteagle,  iteagle_state, 0, ROT0, "Incredible Technologies", "Golden Tee Fore! 2005 Extra (v5.01.00)", MACHINE_SUPPORTS_SAVE )
 GAME( 2004, gtfore05c,  gtfore05, gtfore05, iteagle,  iteagle_state, 0, ROT0, "Incredible Technologies", "Golden Tee Fore! 2005 Extra (v5.00.00)", MACHINE_SUPPORTS_SAVE )
 GAME( 2005, gtfore06,   iteagle,  gtfore06, iteagle,  iteagle_state, 0, ROT0, "Incredible Technologies", "Golden Tee Fore! 2006 Complete (v6.00.01)", MACHINE_SUPPORTS_SAVE )
-GAME( 2003, bbh,        iteagle,  bbh,      bbh,      iteagle_state, 0, ROT0, "Incredible Technologies", "Big Buck Hunter - Original (v1.00.14)", MACHINE_SUPPORTS_SAVE )
+GAME( 2000, bbh,        iteagle,  bbh,      bbh,      iteagle_state, 0, ROT0, "Incredible Technologies", "Big Buck Hunter - Original (v1.00.14)", MACHINE_SUPPORTS_SAVE )
 GAME( 2002, bbhsc,      iteagle,  bbhsc,    bbh,      iteagle_state, 0, ROT0, "Incredible Technologies", "Big Buck Hunter - Shooter's Challenge (v1.60.01)", MACHINE_SUPPORTS_SAVE )
 GAME( 2002, bbhsca,     bbhsc,    bbhsc,    bbh,      iteagle_state, 0, ROT0, "Incredible Technologies", "Big Buck Hunter - Shooter's Challenge (v1.50.07)", MACHINE_SUPPORTS_SAVE )
 GAME( 2004, bbh2sp,     iteagle,  bbh2sp,   bbh2,     iteagle_state, 0, ROT0, "Incredible Technologies", "Big Buck Hunter II - Sportsman's Paradise (v2.02.11)", MACHINE_SUPPORTS_SAVE )

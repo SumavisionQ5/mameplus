@@ -14,6 +14,7 @@
 	- FIFO needs to be properly emulated in the various CPU cores (we currently rely on some workarounds);
 	- sound comms still needs some work (sometimes m68k doesn't get some commands or play them with a delay);
 	- 2C games needs TGPx4 emulation;
+	- outputs and artwork (for gearbox indicators);
 	- clean-ups;
 
 	TODO (per-game issues)
@@ -35,7 +36,7 @@
 	- sgt24h: first turn in easy reverse course has ugly rendered mountain in background;
 	- skytargt: really slow during gameplay (fixed?);
 	- skytargt: short draw distance (might be down to z-sort);
-    - srallyc: some 3d elements doesn't show up properly (trees models, last hill in course 1 is often black colored);
+    - srallyc: some 3d elements doesn't show up properly (tree models, last hill in course 1 is often black colored);
     - vcop: sound dies at enter initial screen (i.e. after played the game once) (untested);
     - vcop: lightgun input is offsetted (needs to be calibrated in service mode);
 	- vcop: missing 3d bug at stage select screen (priority?);
@@ -1178,41 +1179,40 @@ WRITE32_MEMBER(model2_state::hotd_lightgun_w)
 }
 
 
-#ifdef UNUSED_FUNCTION
-READ32_MEMBER(model2_state::sonic_unk_r)
-{
-	return 0x001a0000;
-}
-#endif
-
 READ32_MEMBER(model2o_state::daytona_unk_r)
 {
 	return 0x00400000;
 }
 
-#if 0
-READ32_MEMBER(model2_state::desert_unk_r)
-{
-	static uint8_t test;
-
-	test ^= 8;
-	// vcop needs bit 3 clear (infinite loop otherwise)
-	// desert needs other bits set (not sure which specifically)
-	// daytona needs the MSW to return ff
-	return 0x00f700ff | (test << 16);
-}
-#endif
-
-READ32_MEMBER(model2_state::model2_irq_r)
+READ32_MEMBER(model2_state::irq_request_r)
 {
 	m_maincpu->i960_noburst();
 
-	if (offset)
-	{
-		return m_intena;
-	}
-
 	return m_intreq;
+}
+
+READ32_MEMBER(model2_state::irq_enable_r)
+{
+	m_maincpu->i960_noburst();
+
+	return m_intena;
+}
+
+WRITE32_MEMBER(model2_state::irq_ack_w)
+{
+	m_maincpu->i960_noburst();
+
+	m_intreq &= data;
+
+	model2_check_irqack_state(data ^ 0xffffffff);
+}
+
+WRITE32_MEMBER(model2_state::irq_enable_w)
+{
+	m_maincpu->i960_noburst();
+
+	COMBINE_DATA(&m_intena);
+	model2_check_irq_state();
 }
 
 void model2_state::model2_check_irq_state()
@@ -1241,22 +1241,6 @@ void model2_state::model2_check_irqack_state(uint32_t data)
 		if(data & 1<<i)
 			m_maincpu->set_input_line(irq_type[i], CLEAR_LINE);
 	}
-}
-
-WRITE32_MEMBER(model2_state::model2_irq_w)
-{
-	m_maincpu->i960_noburst();
-
-	if (offset)
-	{
-		COMBINE_DATA(&m_intena);
-		model2_check_irq_state();
-		return;
-	}
-
-	m_intreq &= data;
-
-	model2_check_irqack_state(data ^ 0xffffffff);
 }
 
 /* TODO: rewrite this part. It's a 8251-compatible chip */
@@ -1363,7 +1347,7 @@ WRITE32_MEMBER(model2_state::copro_w)
 
 READ32_MEMBER(model2_state::render_mode_r)
 {
-	return (m_render_unk << 14) | (m_render_mode << 2);
+	return (m_render_unk << 14) | (m_render_mode << 2) | (m_render_test_mode << 0);
 }
 
 WRITE32_MEMBER(model2_state::render_mode_w)
@@ -1371,6 +1355,9 @@ WRITE32_MEMBER(model2_state::render_mode_w)
 	// ---- -x-- (1) 60 Hz mode
 	//           (0) 30 Hz mode - skytargt, desert, vstriker, vcop
 	// ---- ---x Test Mode (Host can "access memories that are always being reloaded")
+	//           Effectively used by Last Bronx to r/w to the framebuffer
+	m_render_test_mode = bool(BIT(data,0));
+
 	m_render_mode = bool(BIT(data,2));
 
 	// undocumented, unknown purpose
@@ -1424,6 +1411,11 @@ READ8_MEMBER(model2_state::tgpid_r)
 	return ID[offset];
 }
 
+READ16_MEMBER(model2_state::fbvram_bankA_r) { return m_fbvramA[offset]; }
+READ16_MEMBER(model2_state::fbvram_bankB_r) { return m_fbvramB[offset]; }
+WRITE16_MEMBER(model2_state::fbvram_bankA_w) { COMBINE_DATA(&m_fbvramA[offset]); }
+WRITE16_MEMBER(model2_state::fbvram_bankB_w) { COMBINE_DATA(&m_fbvramB[offset]); }
+
 /* common map for all Model 2 versions */
 ADDRESS_MAP_START(model2_state::model2_base_mem)
 	AM_RANGE(0x00000000, 0x001fffff) AM_ROM AM_WRITENOP
@@ -1444,7 +1436,8 @@ ADDRESS_MAP_START(model2_state::model2_base_mem)
 	AM_RANGE(0x00980030, 0x0098003f) AM_READ8(tgpid_r,0xffffffff)
 
 	AM_RANGE(0x00e00000, 0x00e00037) AM_RAM // CPU control (wait-states)
-	AM_RANGE(0x00e80000, 0x00e80007) AM_READWRITE(model2_irq_r, model2_irq_w)
+	AM_RANGE(0x00e80000, 0x00e80003) AM_READWRITE(irq_request_r, irq_ack_w)
+	AM_RANGE(0x00e80004, 0x00e80007) AM_READWRITE(irq_enable_r, irq_enable_w)
 
 	AM_RANGE(0x00f00000, 0x00f0000f) AM_READWRITE(timers_r, timers_w)
 
@@ -1475,9 +1468,9 @@ ADDRESS_MAP_START(model2_state::model2_base_mem)
 //  AM_RANGE(0x10a00000, 0x10bfffff) fill memory ping
 //  AM_RANGE(0x10c00000, 0x10dfffff) fill memory pong
 
-	// format is xGGGGGBBBBBRRRRR (512x400)
-	AM_RANGE(0x11600000, 0x1167ffff) AM_RAM AM_SHARE("fbvram1") // framebuffer A (last bronx title screen)
-	AM_RANGE(0x11680000, 0x116fffff) AM_RAM AM_SHARE("fbvram2") // framebuffer B
+	// format is xGGGGGRRRRRBBBBB (512x400)
+	AM_RANGE(0x11600000, 0x1167ffff) AM_READWRITE16(fbvram_bankA_r,fbvram_bankA_w,0xffffffff) // framebuffer A (last bronx title screen)
+	AM_RANGE(0x11680000, 0x116fffff) AM_READWRITE16(fbvram_bankB_r,fbvram_bankB_w,0xffffffff) AM_SHARE("fbvram2") // framebuffer B
 
 	AM_RANGE(0x12800000, 0x1281ffff) AM_READWRITE16(lumaram_r,lumaram_w,0x0000ffff) // polygon "luma" RAM
 ADDRESS_MAP_END
@@ -1689,7 +1682,14 @@ ADDRESS_MAP_START(model2c_state::model2c_5881_mem)
 	AM_IMPORT_FROM(model2_5881_mem)
 ADDRESS_MAP_END
 
-/* Input definitions */
+
+
+/***********************************
+ *
+ * Input definitions
+ *
+ **********************************/
+
 static INPUT_PORTS_START( model2 )
 	PORT_START("IN0")
 	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_COIN1 )
@@ -2021,7 +2021,7 @@ static INPUT_PORTS_START( rchase2 )
 	PORT_MODIFY("IN2")
 	PORT_BIT(0xff, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_CUSTOM_MEMBER(DEVICE_SELF, model2_state,rchase2_devices_r, nullptr)
 
-	// reversed p1 and p2
+	// reversed p1 and p2 wrt Gunblade
 	PORT_MODIFY("ANA0")
 	PORT_BIT(0xff, 0x80, IPT_AD_STICK_X ) PORT_MINMAX( 0, 0xff ) PORT_SENSITIVITY( 50 ) PORT_KEYDELTA( 15 ) PORT_PLAYER(2) PORT_REVERSE
 
@@ -2118,6 +2118,132 @@ static INPUT_PORTS_START( von )
 	PORT_BIT(0x80, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_LEFT ) PORT_PLAYER(1)
 INPUT_PORTS_END
 
+static INPUT_PORTS_START( skisuprg )
+	PORT_INCLUDE( model2 )
+	
+	PORT_MODIFY("IN0")
+	PORT_BIT(0x10, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_NAME("Select 3 Button")
+	PORT_BIT(0x20, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_NAME("Zoom In Button")
+	PORT_BIT(0x40, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_NAME("Select 1 Button")
+	PORT_BIT(0x80, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_NAME("Select 2 Button")
+
+	PORT_MODIFY("IN1")
+	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_NAME("Zoom Out Button")
+	PORT_BIT(0xfe, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_MODIFY("IN2")
+	// TODO: what are these exactly? Enables/disables when all four bits are on
+	PORT_BIT(0x0f, IP_ACTIVE_HIGH, IPT_JOYSTICK_RIGHT ) PORT_NAME("Foot Sensor (R)")
+	PORT_BIT(0xf0, IP_ACTIVE_HIGH, IPT_JOYSTICK_LEFT ) PORT_NAME("Foot Sensor (L)")
+	
+	PORT_START("ANA0")
+	PORT_BIT(0xff, 0x80, IPT_AD_STICK_Y ) PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(30) PORT_KEYDELTA(20) PORT_PLAYER(1)
+
+	PORT_START("ANA1")	
+	PORT_BIT(0xff, 0x80, IPT_AD_STICK_X ) PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(30) PORT_KEYDELTA(20) PORT_PLAYER(1)
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( stcc )
+	PORT_INCLUDE( sgt24h )
+
+	PORT_MODIFY("IN1")
+	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(1) PORT_NAME("View 1 Button (Zoom In)")
+	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_PLAYER(1) PORT_NAME("View 2 Button (Zoom Out)")
+	PORT_BIT(0x0c, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT(0x10, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1) PORT_NAME("Shift Up")
+	PORT_BIT(0x20, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1) PORT_NAME("Shift Down")
+	PORT_BIT(0xc0, IP_ACTIVE_LOW, IPT_UNUSED ) PORT_PLAYER(1)
+	
+	PORT_MODIFY("IN2")
+	PORT_BIT(0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( waverunr )
+	PORT_INCLUDE( model2 )
+
+	PORT_MODIFY("IN0")
+	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT(0x30, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT(0x40, IP_ACTIVE_LOW, IPT_START1 )
+	PORT_BIT(0x80, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_MODIFY("IN1")
+	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1) PORT_NAME("View Button")
+	PORT_BIT(0xfe, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_MODIFY("IN2")
+	// TODO: safety sensor
+	PORT_BIT(0x08, IP_ACTIVE_HIGH, IPT_SPECIAL )
+	PORT_BIT(0xf7, IP_ACTIVE_LOW, IPT_UNUSED )
+	
+	// TODO: requires LEFT/RIGHT_AD_STICK in framework
+	PORT_START("ANA0")
+	PORT_BIT(0xff, 0x80, IPT_AD_STICK_X ) PORT_MINMAX( 0, 0xff ) PORT_SENSITIVITY( 50 ) PORT_KEYDELTA( 15 ) PORT_NAME("Handle Bar")
+
+	PORT_START("ANA1")
+	PORT_BIT(0xff, 0x80, IPT_AD_STICK_X ) PORT_MINMAX( 0, 0xff ) PORT_SENSITIVITY( 50 ) PORT_KEYDELTA( 15 ) PORT_NAME("Roll")
+
+	PORT_START("ANA2")
+	PORT_BIT(0xff, 0x80, IPT_AD_STICK_Y ) PORT_MINMAX( 0, 0xff ) PORT_SENSITIVITY( 50 ) PORT_KEYDELTA( 15 ) PORT_NAME("Throttle Lever") PORT_REVERSE
+
+	PORT_START("ANA3")
+	PORT_BIT(0xff, 0x80, IPT_AD_STICK_Y ) PORT_MINMAX( 0, 0xff ) PORT_SENSITIVITY( 50 ) PORT_KEYDELTA( 15 ) PORT_NAME("Pitch") PORT_REVERSE
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( segawski )
+	PORT_INCLUDE( model2 )
+	
+	PORT_MODIFY("IN0")
+	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT(0x30, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT(0x40, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_NAME("Select (Down) Button")
+	PORT_BIT(0x80, IP_ACTIVE_LOW, IPT_UNUSED )
+	
+	PORT_MODIFY("IN1")
+	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_NAME("Set Button")
+	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_NAME("Select (Up) Button")
+	PORT_BIT(0x04, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1) PORT_NAME("Pitch Left")
+	PORT_BIT(0x08, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1) PORT_NAME("Pitch Right")
+	PORT_BIT(0xf0, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_MODIFY("IN2")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+	
+	PORT_START("ANA0")
+	PORT_BIT(0xff, 0x80, IPT_AD_STICK_X ) PORT_MINMAX( 0, 0xff ) PORT_SENSITIVITY( 50 ) PORT_KEYDELTA( 15 ) PORT_NAME("Slide")
+INPUT_PORTS_END
+
+// TODO: has testable service / test on board buttons
+static INPUT_PORTS_START( topskatr )
+	PORT_INCLUDE( model2 )
+
+	PORT_MODIFY("IN0")
+	PORT_BIT(0x10, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_NAME("Select Right Button")
+	PORT_BIT(0x20, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_NAME("Jump Front")
+	PORT_BIT(0x40, IP_ACTIVE_LOW, IPT_START1 )
+	PORT_BIT(0x80, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_NAME("Select Left Button")
+
+	PORT_MODIFY("IN1")
+	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_NAME("Jump Tail")
+	PORT_BIT(0xfe, IP_ACTIVE_LOW, IPT_UNUSED )
+	
+	PORT_MODIFY("IN2")
+	PORT_BIT(0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+	
+	// TODO: requires LEFT/RIGHT_AD_STICK in framework
+	PORT_START("ANA0")
+	PORT_BIT(0xff, 0x80, IPT_AD_STICK_X ) PORT_MINMAX( 0, 0xff ) PORT_SENSITIVITY( 50 ) PORT_KEYDELTA( 15 ) PORT_NAME("Curving")
+
+	PORT_START("ANA1")
+	PORT_BIT(0xff, 0x80, IPT_AD_STICK_X ) PORT_MINMAX( 0, 0xff ) PORT_SENSITIVITY( 50 ) PORT_KEYDELTA( 15 ) PORT_NAME("Slide")
+INPUT_PORTS_END
+
+
+/***********************************
+ *
+ * Interrupts
+ *
+ **********************************/
 
 TIMER_DEVICE_CALLBACK_MEMBER(model2_state::model2_interrupt)
 {
@@ -2142,6 +2268,19 @@ TIMER_DEVICE_CALLBACK_MEMBER(model2_state::model2_interrupt)
 	}
 }
 
+#ifdef UNUSED_FUNCTION
+WRITE_LINE_MEMBER(model2_state::sound_ready_w)
+{
+	if(state)
+	{
+		m_intreq |= (1<<10);
+		if(m_intena & 1<<10)
+			m_maincpu->set_input_line(I960_IRQ3, ASSERT_LINE);
+		model2_check_irq_state();
+	}
+}
+#endif
+
 TIMER_DEVICE_CALLBACK_MEMBER(model2_state::model2c_interrupt)
 {
 	int scanline = param;
@@ -2155,23 +2294,24 @@ TIMER_DEVICE_CALLBACK_MEMBER(model2_state::model2c_interrupt)
 		if (m_m2comm != nullptr)
 			m_m2comm->check_vint_irq();
 	}
-	else if(scanline == 0) // 384
+	else if(scanline == 0)
 	{
 		m_intreq |= (1<<10);
 		if(m_intena & 1<<10)
 			m_maincpu->set_input_line(I960_IRQ3, ASSERT_LINE);
 		model2_check_irq_state();
 	}
-	else if(scanline == 256)
+	#if 0
+	else if(scanline == 0)
 	{
-		/* TODO: irq source? Scroll allocation in dynamcopc? */
+		// TODO: irq source? Scroll allocation in dynamcopc?
+		// it's actually a timer 0 irq, doesn't seem necessary
 		m_intreq |= (1<<2);
 		if(m_intena & 1<<2)
 			m_maincpu->set_input_line(I960_IRQ2, ASSERT_LINE);
 		model2_check_irq_state();
 	}
-
-
+	#endif
 }
 
 /* Model 2 sound board emulation */
@@ -2305,6 +2445,26 @@ MACHINE_CONFIG_START(model2_state::model2_screen)
 	MCFG_PALETTE_ADD("palette", 8192)
 MACHINE_CONFIG_END
 
+MACHINE_CONFIG_START(model2_state::model2_scsp)
+	MCFG_CPU_ADD("audiocpu", M68000, 12000000)
+	MCFG_CPU_PROGRAM_MAP(model2_snd)
+
+	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+
+	MCFG_SOUND_ADD("scsp", SCSP, 0)
+	MCFG_SCSP_IRQ_CB(WRITE8(model2_state,scsp_irq))
+	MCFG_SOUND_ROUTE(0, "lspeaker", 2.0)
+	MCFG_SOUND_ROUTE(0, "rspeaker", 2.0)
+
+	MCFG_DEVICE_ADD("uart", I8251, 8000000) // uPD71051C, clock unknown
+//	MCFG_I8251_RXRDY_HANDLER(WRITELINE(model2_state, sound_ready_w))
+//	MCFG_I8251_TXRDY_HANDLER(WRITELINE(model2_state, sound_ready_w))
+
+	MCFG_CLOCK_ADD("uart_clock", 500000) // 16 times 31.25MHz (standard Sega/MIDI sound data rate)
+	MCFG_CLOCK_SIGNAL_HANDLER(DEVWRITELINE("uart", i8251_device, write_txc))
+	MCFG_DEVCB_CHAIN_OUTPUT(DEVWRITELINE("uart", i8251_device, write_rxc))
+MACHINE_CONFIG_END
+
 /* original Model 2 */
 MACHINE_CONFIG_START(model2o_state::model2o)
 	MCFG_CPU_ADD("maincpu", I960, 25000000)
@@ -2407,9 +2567,6 @@ MACHINE_CONFIG_START(model2a_state::model2a)
 	MCFG_CPU_PROGRAM_MAP(model2a_crx_mem)
 	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", model2_state, model2_interrupt, "screen", 0, 1)
 
-	MCFG_CPU_ADD("audiocpu", M68000, 12000000)
-	MCFG_CPU_PROGRAM_MAP(model2_snd)
-
 	MCFG_CPU_ADD("tgp", MB86233, 16000000)
 	MCFG_CPU_PROGRAM_MAP(copro_tgp_map)
 	MCFG_MB86233_FIFO_READ_CB(READ32(model2_state,copro_tgp_fifoin_pop))
@@ -2425,19 +2582,7 @@ MACHINE_CONFIG_START(model2a_state::model2a)
 
 	model2_timers(config);
 	model2_screen(config);
-
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
-
-	MCFG_SOUND_ADD("scsp", SCSP, 0)
-	MCFG_SCSP_IRQ_CB(WRITE8(model2_state,scsp_irq))
-	MCFG_SOUND_ROUTE(0, "lspeaker", 2.0)
-	MCFG_SOUND_ROUTE(0, "rspeaker", 2.0)
-
-	MCFG_DEVICE_ADD("uart", I8251, 8000000) // uPD71051C, clock unknown
-
-	MCFG_CLOCK_ADD("uart_clock", 500000) // 16 times 31.25MHz (standard Sega/MIDI sound data rate)
-	MCFG_CLOCK_SIGNAL_HANDLER(DEVWRITELINE("uart", i8251_device, write_txc))
-	MCFG_DEVCB_CHAIN_OUTPUT(DEVWRITELINE("uart", i8251_device, write_rxc))
+	model2_scsp(config);
 
 	MCFG_M2COMM_ADD("m2comm")
 MACHINE_CONFIG_END
@@ -2490,9 +2635,6 @@ MACHINE_CONFIG_START(model2b_state::model2b)
 	MCFG_CPU_PROGRAM_MAP(model2b_crx_mem)
 	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", model2_state, model2_interrupt, "screen", 0, 1)
 
-	MCFG_CPU_ADD("audiocpu", M68000, 12000000)
-	MCFG_CPU_PROGRAM_MAP(model2_snd)
-
 	MCFG_CPU_ADD("dsp", ADSP21062, 40000000)
 	MCFG_SHARC_BOOT_MODE(BOOT_MODE_HOST)
 	MCFG_CPU_DATA_MAP(copro_sharc_map)
@@ -2511,19 +2653,7 @@ MACHINE_CONFIG_START(model2b_state::model2b)
 
 	model2_timers(config);
 	model2_screen(config);
-
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
-
-	MCFG_SOUND_ADD("scsp", SCSP, 0)
-	MCFG_SCSP_IRQ_CB(WRITE8(model2_state,scsp_irq))
-	MCFG_SOUND_ROUTE(0, "lspeaker", 2.0)
-	MCFG_SOUND_ROUTE(0, "rspeaker", 2.0)
-
-	MCFG_DEVICE_ADD("uart", I8251, 8000000) // uPD71051C, clock unknown
-
-	MCFG_CLOCK_ADD("uart_clock", 500000) // 16 times 31.25MHz (standard Sega/MIDI sound data rate)
-	MCFG_CLOCK_SIGNAL_HANDLER(DEVWRITELINE("uart", i8251_device, write_txc))
-	MCFG_DEVCB_CHAIN_OUTPUT(DEVWRITELINE("uart", i8251_device, write_rxc))
+	model2_scsp(config);
 
 	MCFG_M2COMM_ADD("m2comm")
 MACHINE_CONFIG_END
@@ -2584,9 +2714,6 @@ MACHINE_CONFIG_START(model2c_state::model2c)
 	MCFG_CPU_ADD("tgpx4", MB86235, 40000000)
 	MCFG_CPU_PROGRAM_MAP(copro_tgpx4_map)
 
-	MCFG_CPU_ADD("audiocpu", M68000, 12000000)
-	MCFG_CPU_PROGRAM_MAP(model2_snd)
-
 	MCFG_MACHINE_START_OVERRIDE(model2_state,model2)
 	MCFG_MACHINE_RESET_OVERRIDE(model2_state,model2c)
 
@@ -2595,19 +2722,7 @@ MACHINE_CONFIG_START(model2c_state::model2c)
 
 	model2_timers(config);
 	model2_screen(config);
-
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
-
-	MCFG_SOUND_ADD("scsp", SCSP, 0)
-	MCFG_SCSP_IRQ_CB(WRITE8(model2_state, scsp_irq))
-	MCFG_SOUND_ROUTE(0, "lspeaker", 2.0)
-	MCFG_SOUND_ROUTE(0, "rspeaker", 2.0)
-
-	MCFG_DEVICE_ADD("uart", I8251, 8000000) // uPD71051C, clock unknown
-
-	MCFG_CLOCK_ADD("uart_clock", 500000) // 16 times 31.25MHz (standard Sega/MIDI sound data rate)
-	MCFG_CLOCK_SIGNAL_HANDLER(DEVWRITELINE("uart", i8251_device, write_txc))
-	MCFG_DEVCB_CHAIN_OUTPUT(DEVWRITELINE("uart", i8251_device, write_rxc))
+	model2_scsp(config);
 
 	MCFG_M2COMM_ADD("m2comm")
 MACHINE_CONFIG_END
@@ -6253,18 +6368,18 @@ GAME( 1998, dyndeka2b, dynamcop, model2b_5881, model2,    model2b_state, 0,     
 GAME( 1998, pltkids,   0,        model2b_5881, model2,    model2b_state, pltkids,  ROT0, "Psikyo", "Pilot Kids (Model 2B, Revision A)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
 
 // Model 2C-CRX (TGPx4, SCSP sound board)
-GAME( 1996, skisuprg,  0,        model2c,      model2,   model2c_state, 0,       ROT0, "Sega",   "Sega Ski Super G", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS|MACHINE_UNEMULATED_PROTECTION )
-GAME( 1996, stcc,      0,        stcc,         model2,   model2c_state, 0,       ROT0, "Sega",   "Sega Touring Car Championship", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
-GAME( 1996, stccb,     stcc,     stcc,         model2,   model2c_state, 0,       ROT0, "Sega",   "Sega Touring Car Championship (Revision B)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
-GAME( 1996, stcca,     stcc,     stcc,         model2,   model2c_state, 0,       ROT0, "Sega",   "Sega Touring Car Championship (Revision A)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
-GAME( 1996, waverunr,  0,        model2c,      model2,   model2c_state, 0,       ROT0, "Sega",   "Wave Runner (Japan, Revision A)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
+GAME( 1996, skisuprg,  0,        model2c,      skisuprg, model2c_state, 0,       ROT0, "Sega",   "Sega Ski Super G", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS|MACHINE_UNEMULATED_PROTECTION )
+GAME( 1996, stcc,      0,        stcc,         stcc,     model2c_state, 0,       ROT0, "Sega",   "Sega Touring Car Championship", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
+GAME( 1996, stccb,     stcc,     stcc,         stcc,     model2c_state, 0,       ROT0, "Sega",   "Sega Touring Car Championship (Revision B)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
+GAME( 1996, stcca,     stcc,     stcc,         stcc,     model2c_state, 0,       ROT0, "Sega",   "Sega Touring Car Championship (Revision A)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
+GAME( 1996, waverunr,  0,        model2c,      waverunr, model2c_state, 0,       ROT0, "Sega",   "Wave Runner (Japan, Revision A)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
 GAME( 1997, bel,       0,        model2c,      bel,      model2c_state, 0,       ROT0, "Sega / EPL Productions", "Behind Enemy Lines", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
 GAME( 1997, hotd,      0,        model2c,      vcop,     model2c_state, 0,       ROT0, "Sega",   "The House of the Dead", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
 GAME( 1997, overrev,   0,        overrev2c,    overrev,  model2c_state, 0,       ROT0, "Jaleco", "Over Rev (Model 2C, Revision A)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
 GAME( 1997, rascot2,   0,        model2c,      model2,   model2c_state, 0,       ROT0, "Sega",   "Royal Ascot II", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
-GAME( 1997, segawski,  0,        model2c,      model2,   model2c_state, 0,       ROT0, "Sega",   "Sega Water Ski (Japan, Revision A)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
-GAME( 1997, topskatr,  0,        model2c,      model2,   model2c_state, 0,       ROT0, "Sega",   "Top Skater (Export, Revision A)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
-GAME( 1997, topskatru, topskatr, model2c,      model2,   model2c_state, 0,       ROT0, "Sega",   "Top Skater (USA, Revision A)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
-GAME( 1997, topskatruo,topskatr, model2c,      model2,   model2c_state, 0,       ROT0, "Sega",   "Top Skater (USA)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
-GAME( 1997, topskatrj, topskatr, model2c,      model2,   model2c_state, 0,       ROT0, "Sega",   "Top Skater (Japan)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
+GAME( 1997, segawski,  0,        model2c,      segawski, model2c_state, 0,       ROT0, "Sega",   "Sega Water Ski (Japan, Revision A)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
+GAME( 1997, topskatr,  0,        model2c,      topskatr, model2c_state, 0,       ROT0, "Sega",   "Top Skater (Export, Revision A)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
+GAME( 1997, topskatru, topskatr, model2c,      topskatr, model2c_state, 0,       ROT0, "Sega",   "Top Skater (USA, Revision A)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
+GAME( 1997, topskatruo,topskatr, model2c,      topskatr, model2c_state, 0,       ROT0, "Sega",   "Top Skater (USA)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
+GAME( 1997, topskatrj, topskatr, model2c,      topskatr, model2c_state, 0,       ROT0, "Sega",   "Top Skater (Japan)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
 GAME( 1998, dynamcopc, dynamcop, model2c_5881, model2,   model2c_state, 0,       ROT0, "Sega",   "Dynamite Cop (USA, Model 2C)", MACHINE_NOT_WORKING|MACHINE_IMPERFECT_GRAPHICS )
