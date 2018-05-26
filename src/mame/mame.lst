@@ -2817,6 +2817,7 @@ econx25                         // 1986 Econet X25 Gateway
 ltmpbp                          // 1985 LTM Portable (B+)
 ltmpm                           // 1986 LTM Portable (Master)
 pro128s                         // 1987 Olivetti Prodest PC 128S
+autoc15                         // 1988 Autocue 1500
 reutapm                         // 1985 Reuters APM Board
 torchf                          // 1982 Torch CF240
 torchh10                        // 1982 Torch CH240/10
@@ -10125,6 +10126,7 @@ kod                             // 05/08/1991 (c) 1991 (World)
 kodj                            // 05/08/1991 (c) 1991 (Japan)
 kodja                           // 05/08/1991 (c) 1991 (Japan)
 kodr1                           // 11/07/1991 (c) 1991 (World)
+kodr2                           // 31/07/1991 (c) 1991 (World)
 kodu                            // 10/09/1991 (c) 1991 (USA)
 lostwrld                        // 7/1988 (c) 1988 (Japan)
 lostwrldo                       // 7/1988 (c) 1988 (Japan)
@@ -11064,6 +11066,7 @@ aar_101                         //
 btmn_101                        //
 btmn_103                        //
 btmn_106                        //
+btmn_f13                        //
 btmn_g13                        //
 ckpt_a17                        //
 gnr_300                         //
@@ -13502,6 +13505,9 @@ gcbr                            // (c) 2002 Nintendo
 @source:gameking.cpp
 gamekin3                        //
 gameking                        //
+
+@source:gamemasters.cpp
+gmsshoot                        // (c) 1989 GameMasters
 
 @source:gameplan.cpp
 challeng                        // (c) 1981 Centuri
@@ -29571,6 +29577,7 @@ imekura                         // (c) 1994 SPHINX/AV JAPAN
 janbari                         // (c) 1992 Nichibutsu/Yubis/AV JAPAN
 jituroku                        // (c) 1993 Windom
 koinomp                         // (c) 1992
+ldquiz4                         // (c) 1992
 mjanbari                        // (c) 1992 Nichibutsu/Yubis/AV JAPAN
 mjegolf                         // (c) 1994 FUJIC/AV JAPAN
 mjgottsu                        // (c) 1991
@@ -30155,6 +30162,7 @@ tdragon3h
 tdragonb                        // bootleg
 tharrier                        // UPL-89053 (c) 1989 UPL
 tharrieru                       // UPL-89053 (c) 1989 UPL + American Sammy license
+tomagic                         //
 twinactn                        // (c) 1995 - bootleg of US AFF Mustang
 vandyke                         // UPL-90064 (c) UPL
 vandykeb                        // bootleg
@@ -32121,7 +32129,10 @@ sshooter12                      // (c) 1998 P&P Marketing
 sshooter17                      // (c) 1998 P&P Marketing
 
 @source:poly.cpp
-poly1                           //
+poly1                           // Poly 1
+poly1e                          // Poly 1 (early)
+poly2                           // Poly 2
+polydev                         // Poly Development
 
 @source:poly88.cpp
 poly88                          //
@@ -34191,6 +34202,9 @@ ochaken                         //
 segasp                          //
 tetgiano                        //
 tetgiant                        //
+
+@source:segattl.cpp
+fonz                            //
 
 @source:segaufo.cpp
 newufo                          //
@@ -37797,6 +37811,7 @@ mrdig                           // (c) 2000 Sun
 mrkicker                        // (c) 2001 Semicom
 mrkickera                       // (c) 2001 Semicom
 newxpang                        // (c) 1999 F2 System
+worldadv                        // (c) 1999 F2 System
 puzlbang                        // (c) 1999 Omega System
 puzlbanga                       // (c) 1999 Omega System
 suplup                          // (c) 1999 Omega System
