@@ -13,6 +13,7 @@
 #include "cpu/h6280/h6280.h"
 #include "cpu/m6502/n2a03.h"
 #include "sound/2203intf.h"
+#include "sound/2608intf.h"
 #include "sound/2612intf.h"
 #include "sound/3526intf.h"
 #include "sound/3812intf.h"
@@ -20,6 +21,7 @@
 #include "sound/c352.h"
 #include "sound/c6280.h"
 #include "sound/gb.h"
+#include "sound/iremga20.h"
 #include "sound/k051649.h"
 #include "sound/k053260.h"
 #include "sound/k054539.h"
@@ -27,13 +29,14 @@
 #include "sound/okim6295.h"
 #include "sound/pokey.h"
 #include "sound/qsound.h"
+#include "sound/rf5c68.h"
 #include "sound/segapcm.h"
 #include "sound/sn76496.h"
+#include "sound/x1_010.h"
 #include "sound/ym2151.h"
 #include "sound/ym2413.h"
 #include "sound/ymf271.h"
 #include "sound/ymz280b.h"
-#include "sound/2608intf.h"
 
 #include "vgmplay.lh"
 #include "debugger.h"
@@ -90,10 +93,16 @@ public:
 		A_YMF271     = 0x00013040,
 		A_YMZ280B    = 0x00013050,
 		A_YM2608     = 0x00013060,
-		A_K054539A   = 0x00014000,
-		A_K054539B   = 0x00014400,
-		A_QSOUND     = 0x00013070,
-		A_K051649    = 0x00013080
+		A_K054539A   = 0x00013400,
+		A_K054539B   = 0x00013800,
+		A_QSOUND     = 0x00013c00,
+		A_K051649    = 0x00013c10,
+		A_GA20       = 0x00013c20,
+		A_RF5C68     = 0x00013c40,
+		A_RF5C164    = 0x00013c50,
+		A_RF5C68RAM  = 0x00014000,
+		A_RF5C164RAM = 0x00024000,
+		A_X1_010     = 0x00034000
 	};
 
 	enum io16_t
@@ -126,6 +135,8 @@ public:
 	template<int Chip> DECLARE_READ8_MEMBER(k054539_rom_r);
 	DECLARE_READ8_MEMBER(c352_rom_r);
 	DECLARE_READ8_MEMBER(qsound_rom_r);
+	DECLARE_READ8_MEMBER(ga20_rom_r);
+	DECLARE_READ8_MEMBER(x1_010_rom_r);
 
 	template<int Chip> DECLARE_WRITE8_MEMBER(multipcm_bank_hi_w);
 	template<int Chip> DECLARE_WRITE8_MEMBER(multipcm_bank_lo_w);
@@ -182,6 +193,13 @@ private:
 		LED_K053260,
 		LED_K054539,
 
+		LED_GA20,
+
+		LED_RF5C68,
+		LED_RF5C164,
+
+		LED_X1_010,
+
 		LED_COUNT
 	};
 
@@ -205,6 +223,7 @@ private:
 
 	uint8_t rom_r(int chip, uint8_t type, offs_t offset);
 	uint32_t handle_data_block(uint32_t address);
+	uint32_t handle_pcm_write(uint32_t address);
 	void blocks_clear();
 
 	output_finder<LED_COUNT> m_act_leds;
@@ -268,6 +287,7 @@ public:
 	void vgmplay(machine_config &config);
 	void c352_map(address_map &map);
 	void file_map(address_map &map);
+	void ga20_map(address_map &map);
 	void h6280_io_map(address_map &map);
 	void h6280_map(address_map &map);
 	void k053260_map(address_map &map);
@@ -279,9 +299,12 @@ public:
 	void okim6295a_map(address_map &map);
 	void okim6295b_map(address_map &map);
 	void qsound_map(address_map &map);
+	void rf5c68_map(address_map &map);
+	void rf5c164_map(address_map &map);
 	void segapcm_map(address_map &map);
 	void soundchips16_map(address_map &map);
 	void soundchips_map(address_map &map);
+	void x1_010_map(address_map &map);
 	void ymf271_map(address_map &map);
 	void ymz280b_map(address_map &map);
 
@@ -316,6 +339,12 @@ private:
 	required_device<ym2608_device> m_ym2608;
 	required_device<qsound_device> m_qsound;
 	required_device<k051649_device> m_k051649;
+	required_device<iremga20_device> m_ga20;
+	required_device<rf5c68_device> m_rf5c68;
+	required_device<rf5c68_device> m_rf5c164; // TODO : !!RF5C164!!
+	required_shared_ptr<uint8_t> m_rf5c68_ram;
+	required_shared_ptr<uint8_t> m_rf5c164_ram;
+	required_device<x1_010_device> m_x1_010;
 
 	uint32_t m_okim6295_clock[2];
 	uint32_t m_okim6295_pin7[2];
@@ -475,15 +504,45 @@ uint32_t vgmplay_device::handle_data_block(uint32_t address)
 		for(uint32_t i=0; i<size-8; i++)
 			block[i] = m_file->read_byte(m_pc+15+i);
 		m_rom_blocks[second][type - 0x80].emplace_front(start, start+size-9, std::move(block));
-	} else if(type == 0xc2) {
+	} else if(type <= 0xc2) {
 		uint16_t start = m_file->read_word(m_pc+7);
 		uint32_t data_size = size - 2;
-		for (int i = 0; i < data_size; i++)
-			m_io->write_byte(A_NESRAM + start + i, m_file->read_byte(m_pc + 9 + i));
+		if (type == 0xc0) {
+			for (int i = 0; i < data_size; i++)
+				m_io->write_byte(A_RF5C68RAM + start + i, m_file->read_byte(m_pc + 9 + i));
+		} else if (type == 0xc1) {
+			for (int i = 0; i < data_size; i++)
+				m_io->write_byte(A_RF5C164RAM + start + i, m_file->read_byte(m_pc + 9 + i));
+		} else if (type == 0xc2) {
+			for (int i = 0; i < data_size; i++)
+				m_io->write_byte(A_NESRAM + start + i, m_file->read_byte(m_pc + 9 + i));
+		}
 	} else {
 		logerror("ignored ram block size %x type %02x\n", size, type);
 	}
 	return 7+size;
+}
+
+uint32_t vgmplay_device::handle_pcm_write(uint32_t address)
+{
+	uint8_t type = m_file->read_byte(m_pc+2);
+	uint32_t src = m_file->read_dword(m_pc+3) & 0xffffff;
+	uint32_t dst = m_file->read_dword(m_pc+6) & 0xffffff;
+	uint32_t size = m_file->read_dword(m_pc+9) & 0xffffff;
+
+	if (type == 0x01) {
+		for (int i = 0; i < size; i++)
+			m_io->write_byte(A_RF5C68RAM + dst + i, m_data_streams[type][src + i]);
+	} else if (type == 0x02) {
+		for (int i = 0; i < size; i++)
+			m_io->write_byte(A_RF5C164RAM + dst + i, m_data_streams[type][src + i]);
+	} else if (type == 0x07) {
+		for (int i = 0; i < size; i++)
+			m_io->write_byte(A_NESRAM + dst + i, m_data_streams[type][src + i]);
+	} else {
+		logerror("ignored pcm ram writes src %x dst %x size %x type %02x\n", src, dst, size, type);
+	}
+	return 12;
 }
 
 void vgmplay_device::execute_run()
@@ -634,6 +693,10 @@ void vgmplay_device::execute_run()
 				m_pc += handle_data_block(m_pc);
 				break;
 
+			case 0x68:
+				m_pc += handle_pcm_write(m_pc);
+				break;
+
 			case 0x70: case 0x71: case 0x72: case 0x73: case 0x74: case 0x75: case 0x76: case 0x77:
 			case 0x78: case 0x79: case 0x7a: case 0x7b: case 0x7c: case 0x7d: case 0x7e: case 0x7f:
 				m_icount -= 1+(code & 0xf);
@@ -668,6 +731,18 @@ void vgmplay_device::execute_run()
 				m_pc += 3;
 				break;
 			}
+
+			case 0xb0:
+				pulse_act_led(LED_RF5C68);
+				m_io->write_byte(A_RF5C68 + m_file->read_byte(m_pc+1), m_file->read_byte(m_pc+2));
+				m_pc += 3;
+				break;
+
+			case 0xb1:
+				pulse_act_led(LED_RF5C164);
+				m_io->write_byte(A_RF5C164 + m_file->read_byte(m_pc+1), m_file->read_byte(m_pc+2));
+				m_pc += 3;
+				break;
 
 			case 0xb3:
 				pulse_act_led(LED_GAMEBOY);
@@ -726,9 +801,28 @@ void vgmplay_device::execute_run()
 				break;
 			}
 
+			case 0xbf: {
+				pulse_act_led(LED_GA20);
+				m_io->write_byte(A_GA20 + m_file->read_byte(m_pc+1), m_file->read_byte(m_pc+2));
+				m_pc += 3;
+				break;
+			}
+
 			case 0xc0:
 				pulse_act_led(LED_SEGAPCM);
 				m_io->write_byte(A_SEGAPCM + (m_file->read_word(m_pc+1) & 0x7ff), m_file->read_byte(m_pc+3));
+				m_pc += 4;
+				break;
+
+			case 0xc1:
+				pulse_act_led(LED_RF5C68);
+				m_io->write_byte(A_RF5C68RAM + m_file->read_word(m_pc+1), m_file->read_byte(m_pc+3));
+				m_pc += 4;
+				break;
+
+			case 0xc2:
+				pulse_act_led(LED_RF5C164);
+				m_io->write_byte(A_RF5C164RAM + m_file->read_word(m_pc+1), m_file->read_byte(m_pc+3));
 				m_pc += 4;
 				break;
 
@@ -753,6 +847,13 @@ void vgmplay_device::execute_run()
 				m_io->write_byte(A_QSOUND + 2, m_file->read_byte(m_pc+3));
 				m_pc += 4;
 				break;
+
+			case 0xc8: {
+				pulse_act_led(LED_X1_010);
+				m_io->write_byte(A_X1_010 + ((m_file->read_byte(m_pc+1) << 8) | m_file->read_byte(m_pc+2)), m_file->read_byte(m_pc+3));
+				m_pc += 4;
+				break;
+			}
 
 			case 0xd1: {
 				pulse_act_led(LED_YMF271);
@@ -1106,7 +1207,7 @@ offs_t vgmplay_disassembler::disassemble(std::ostream &stream, offs_t pc, const 
 		return 4 | SUPPORTED;
 
 	case 0xc2:
-		util::stream_format(stream, "rf5c163 %04x = %02x", opcodes.r8(pc+1) | (opcodes.r8(pc+2) << 8), opcodes.r8(pc+3));
+		util::stream_format(stream, "rf5c164 %04x = %02x", opcodes.r8(pc+1) | (opcodes.r8(pc+2) << 8), opcodes.r8(pc+3));
 		return 4 | SUPPORTED;
 
 	case 0xc3:
@@ -1115,6 +1216,10 @@ offs_t vgmplay_disassembler::disassemble(std::ostream &stream, offs_t pc, const 
 
 	case 0xc4:
 		util::stream_format(stream, "qsound %02x = %04x", opcodes.r8(pc+3), opcodes.r8(pc+2) | (opcodes.r8(pc+1) << 8));
+		return 4 | SUPPORTED;
+
+	case 0xc8:
+		util::stream_format(stream, "x1-010 %04x = %02x", opcodes.r8(pc+2) | (opcodes.r8(pc+1) << 8), opcodes.r8(pc+3));
 		return 4 | SUPPORTED;
 
 	case 0xd0:
@@ -1218,7 +1323,7 @@ READ8_MEMBER(vgmplay_device::okim6295_rom_r)
 	{
 		if ((offset < 0x400) && (m_okim6295_nmk112_enable[Chip] & 0x80))
 		{
-			offset = (m_okim6295_nmk112_bank[Chip][(offset >> 8) & 0x3] << 16) | (offset & 0xff);
+			offset = (m_okim6295_nmk112_bank[Chip][(offset >> 8) & 0x3] << 16) | (offset & 0x3ff);
 		}
 		else
 		{
@@ -1248,9 +1353,19 @@ READ8_MEMBER(vgmplay_device::qsound_rom_r)
 	return rom_r(0, 0x8f, offset);
 }
 
+READ8_MEMBER(vgmplay_device::x1_010_rom_r)
+{
+	return rom_r(0, 0x91, offset);
+}
+
 READ8_MEMBER(vgmplay_device::c352_rom_r)
 {
 	return rom_r(0, 0x92, offset);
+}
+
+READ8_MEMBER(vgmplay_device::ga20_rom_r)
+{
+	return rom_r(0, 0x93, offset);
 }
 
 vgmplay_state::vgmplay_state(const machine_config &mconfig, device_type type, const char *tag)
@@ -1284,6 +1399,12 @@ vgmplay_state::vgmplay_state(const machine_config &mconfig, device_type type, co
 	, m_ym2608(*this, "ym2608")
 	, m_qsound(*this, "qsound")
 	, m_k051649(*this, "k051649")
+	, m_ga20(*this, "ga20")
+	, m_rf5c68(*this, "rf5c68")
+	, m_rf5c164(*this, "rf5c164")
+	, m_rf5c68_ram(*this, "rf5c68_ram")
+	, m_rf5c164_ram(*this, "rf5c164_ram")
+	, m_x1_010(*this, "x1_010")
 {
 }
 
@@ -1393,7 +1514,7 @@ void vgmplay_state::machine_start()
 		if (data_start > 0x40)
 		{
 			if(version >= 0x151 && r32(0x40))
-				logerror("Warning: file requests an unsupported RF5C68\n");
+				m_rf5c68->set_unscaled_clock(r32(0x40));
 			if(version >= 0x151 && r32(0x44)) {
 				uint32_t clock = r32(0x44);
 				m_ym2203[0]->set_unscaled_clock(clock & ~0x40000000);
@@ -1426,7 +1547,7 @@ void vgmplay_state::machine_start()
 				m_ymz280b->set_unscaled_clock(r32(0x68));
 			}
 			if(version >= 0x151 && r32(0x6c))
-				logerror("Warning: file requests an unsupported RF5C164\n");
+				m_rf5c164->set_unscaled_clock(r32(0x6c));
 			if(version >= 0x151 && r32(0x70))
 				logerror("Warning: file requests an unsupported PWM\n");
 			if(version >= 0x151 && r32(0x74)) {
@@ -1544,8 +1665,14 @@ void vgmplay_state::machine_start()
 			if(version >= 0x171 && r8(0xd6)) {
 				m_c352->set_divider(r8(0xd6) * 4);
 			}
+			if(version >= 0x171 && r32(0xd8)) {
+				m_x1_010->set_unscaled_clock(r32(0xd8));
+			}
 			if(version >= 0x171 && r32(0xdc)) {
 				m_c352->set_unscaled_clock(r32(0xdc));
+			}
+			if(version >= 0x171 && r32(0xe0)) {
+				m_ga20->set_unscaled_clock(r32(0xe0));
 			}
 		}
 	}
@@ -1758,6 +1885,12 @@ void vgmplay_state::soundchips_map(address_map &map)
 	map(vgmplay_device::A_K054539B, vgmplay_device::A_K054539B+0x22f).w("k054539b", FUNC(k054539_device::write));
 	map(vgmplay_device::A_QSOUND, vgmplay_device::A_QSOUND+0x2).w(m_qsound, FUNC(qsound_device::qsound_w));
 	map(vgmplay_device::A_K051649, vgmplay_device::A_K051649+0xf).w(FUNC(vgmplay_state::scc_w));
+	map(vgmplay_device::A_GA20, vgmplay_device::A_GA20+0x1f).w(m_ga20, FUNC(iremga20_device::irem_ga20_w));
+	map(vgmplay_device::A_RF5C68, vgmplay_device::A_RF5C68+0xf).w(m_rf5c68, FUNC(rf5c68_device::rf5c68_w));
+	map(vgmplay_device::A_RF5C164, vgmplay_device::A_RF5C164+0xf).w(m_rf5c164, FUNC(rf5c68_device::rf5c68_w));
+	map(vgmplay_device::A_RF5C68RAM, vgmplay_device::A_RF5C68RAM+0xffff).w(m_rf5c68, FUNC(rf5c68_device::rf5c68_mem_w));
+	map(vgmplay_device::A_RF5C164RAM, vgmplay_device::A_RF5C164RAM+0xffff).w(m_rf5c164, FUNC(rf5c68_device::rf5c68_mem_w));
+	map(vgmplay_device::A_X1_010, vgmplay_device::A_X1_010+0x1fff).w(m_x1_010, FUNC(x1_010_device::write));
 }
 
 void vgmplay_state::segapcm_map(address_map &map)
@@ -1820,9 +1953,29 @@ void vgmplay_state::ymz280b_map(address_map &map)
 	map(0, 0xffffff).r("vgmplay", FUNC(vgmplay_device::ymz280b_rom_r));
 }
 
+void vgmplay_state::ga20_map(address_map &map)
+{
+	map(0, 0xfffff).r("vgmplay", FUNC(vgmplay_device::ga20_rom_r));
+}
+
+void vgmplay_state::x1_010_map(address_map &map)
+{
+	map(0, 0xfffff).r("vgmplay", FUNC(vgmplay_device::x1_010_rom_r));
+}
+
 void vgmplay_state::nescpu_map(address_map &map)
 {
 	map(0, 0xffff).ram().share("nesapu_ram");
+}
+
+void vgmplay_state::rf5c68_map(address_map &map)
+{
+	map(0, 0xffff).ram().share("rf5c68_ram");
+}
+
+void vgmplay_state::rf5c164_map(address_map &map)
+{
+	map(0, 0xffff).ram().share("rf5c164_ram");
 }
 
 void vgmplay_state::h6280_map(address_map &map)
@@ -1843,7 +1996,7 @@ MACHINE_CONFIG_START(vgmplay_state::vgmplay)
 
 	MCFG_DEVICE_ADD("file", BITBANGER, 0)
 	MCFG_BITBANGER_READONLY(true)
-	MCFG_DEFAULT_LAYOUT(layout_vgmplay)
+	config.set_default_layout(layout_vgmplay);
 
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
@@ -1989,6 +2142,26 @@ MACHINE_CONFIG_START(vgmplay_state::vgmplay)
 	MCFG_K051649_ADD("k051649", 3579545)
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.33)
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.33)
+
+	IREMGA20(config, m_ga20, 3579545);
+	m_ga20->set_addrmap(0, &vgmplay_state::ga20_map);
+	m_ga20->add_route(0, "lspeaker", 1);
+	m_ga20->add_route(1, "rspeaker", 1);
+
+	RF5C68(config, m_rf5c68, 12500000);
+	m_rf5c68->set_addrmap(0, &vgmplay_state::rf5c68_map);
+	m_rf5c68->add_route(0, "lspeaker", 1);
+	m_rf5c68->add_route(1, "rspeaker", 1);
+
+	RF5C68(config, m_rf5c164, 12500000); // TODO : !!RF5C164!!
+	m_rf5c164->set_addrmap(0, &vgmplay_state::rf5c164_map);
+	m_rf5c164->add_route(0, "lspeaker", 1);
+	m_rf5c164->add_route(1, "rspeaker", 1);
+
+	X1_010(config, m_x1_010, 16000000);
+	m_x1_010->set_addrmap(0, &vgmplay_state::x1_010_map);
+	m_x1_010->add_route(0, "lspeaker", 1);
+	m_x1_010->add_route(1, "rspeaker", 1);
 MACHINE_CONFIG_END
 
 ROM_START( vgmplay )
